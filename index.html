@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <title>特設サイト｜ディーキャリア岐阜オリジナルゲームコンテスト</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        .vote-section {
+            margin-bottom: 32px;
+            text-align: center;
+        }
+
+        .vote-section a {
+            color: #0066cc;
+            font-weight: bold;
+        }
+
+        .games-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+        }
+
+        .card {
+            display: flex;
+            flex-direction: column;
+            text-decoration: none;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+        }
+
+        .card .thumb {
+            width: 100%;
+            height: 250px;
+            object-fit: cover;
+            background: #ddd;
+        }
+
+        .card span {
+            padding: 12px;
+            color: #333;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="vote-section">
+        <p>投票はこちらから（1人1票まで）</p>
+        <a href="https://docs.google.com/forms/d/e/1FAIpQLSdGMstjD067sWJ-Pg379LYWuiJvo_fo7urdXoEiEusgTM0qNg/viewform?usp=header">投票フォーム</a>
+    </div>
+
+    <div class="games-section">
+        <a class="card" href="./games/demo1/sample-shooting.html">
+            <img class="thumb" src="images/demo1-thumb.png" alt="">
+            <span>サンプルシューティング</span>
+        </a>
+
+        <a class="card" href="./games/demo2/sample-flappybird.html">
+            <img class="thumb" src="images/demo2-thumb.png" alt="">
+            <span>サンプルフラッピーバード</span>
+        </a>
+
+        <a class="card" href="./games/demo3/sample-breakout.html">
+            <img class="thumb" src="images/demo3-thumb.png" alt="">
+            <span>サンプルブロック崩し</span>
+        </a>
+    </div>
+</body>
+
+</html>

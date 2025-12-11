@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <title>ブロック崩し</title>
+    <style>
+        body {
+            padding: 0;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        canvas {
+            background-color: #eee;
+            display: block;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="main-canvas" width="400" height="600"></canvas>
+
+    <script>
+        class Paddle {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.color = 'rgb(100, 100, 255)';
+                this.width = 80;
+                this.height = 12;
+                this.speed = 6;
+            }
+
+            move(keyStatus) {
+                if (keyStatus.ArrowLeft) {
+                    this.x -= this.speed;
+                }
+                if (keyStatus.ArrowRight) {
+                    this.x += this.speed;
+                }
+            }
+
+            clamp(rect) {
+                if (this.x - this.width / 2 < rect.left) {
+                    this.x = rect.left + this.width / 2;
+                } else if (this.x + this.width / 2 > rect.right) {
+                    this.x = rect.right - this.width / 2;
+                }
+            }
+
+            draw(ctx) {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
+            }
+        }
+
+        class Ball {
+            constructor(x, y, vx, vy) {
+                this.x = x;
+                this.y = y;
+                this.vx = vx;
+                this.vy = vy;
+                this.color = 'rgb(255, 100, 100)';
+                this.radius = 6;
+                this.isAlive = true;
+            }
+
+            move() {
+                this.x += this.vx;
+                this.y += this.vy;
+            }
+
+            bounceWall(rect) {
+                // 左右の壁
+                if (this.x - this.radius < rect.left) {
+                    this.x = rect.left + this.radius;
+                    this.vx = -this.vx;
+                } else if (this.x + this.radius > rect.right) {
+                    this.x = rect.right - this.radius;
+                    this.vx = -this.vx;
+                }
+
+                // 上の壁
+                if (this.y - this.radius < rect.top) {
+                    this.y = rect.top + this.radius;
+                    this.vy = -this.vy;
+                }
+
+                // 下に落ちた
+                if (this.y - this.radius > rect.bottom) {
+                    this.isAlive = false;
+                }
+            }
+
+            bouncePaddle(paddle) {
+                // パドルの範囲内にいるか
+                if (this.x < paddle.x - paddle.width / 2) return;
+                if (this.x > paddle.x + paddle.width / 2) return;
+                if (this.y + this.radius < paddle.y - paddle.height / 2) return;
+                if (this.y - this.radius > paddle.y + paddle.height / 2) return;
+
+                // ボールが上から来た時だけ跳ね返す
+                if (this.vy > 0) {
+                    this.y = paddle.y - paddle.height / 2 - this.radius;
+                    this.vy = -this.vy;
+
+                    // パドルのどこに当たったかで角度を変える
+                    let hitPos = (this.x - paddle.x) / (paddle.width / 2);
+                    this.vx = hitPos * 4;
+                }
+            }
+
+            draw(ctx) {
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        class Block {
+            constructor(x, y, hp) {
+                this.x = x;
+                this.y = y;
+                this.width = 45;
+                this.height = 20;
+                this.hp = hp;
+                this.maxHp = hp;
+                this.score = hp * 100;
+                this.isAlive = true;
+            }
+
+            getColor() {
+                if (this.hp >= 3) return 'rgb(255, 100, 100)';
+                if (this.hp == 2) return 'rgb(255, 200, 100)';
+                return 'rgb(100, 255, 100)';
+            }
+
+            checkCollision(ball) {
+                if (!this.isAlive) return false;
+
+                let blockLeft = this.x - this.width / 2;
+                let blockRight = this.x + this.width / 2;
+                let blockTop = this.y - this.height / 2;
+                let blockBottom = this.y + this.height / 2;
+
+                let ballLeft = ball.x - ball.radius;
+                let ballRight = ball.x + ball.radius;
+                let ballTop = ball.y - ball.radius;
+                let ballBottom = ball.y + ball.radius;
+
+                if (ballRight < blockLeft) return false;
+                if (ballLeft > blockRight) return false;
+                if (ballBottom < blockTop) return false;
+                if (ballTop > blockBottom) return false;
+
+                // 当たった方向を判定
+                let overlapLeft = ballRight - blockLeft;
+                let overlapRight = blockRight - ballLeft;
+                let overlapTop = ballBottom - blockTop;
+                let overlapBottom = blockBottom - ballTop;
+
+                let minOverlap = Math.min(overlapLeft, overlapRight, overlapTop, overlapBottom);
+
+                if (minOverlap == overlapLeft || minOverlap == overlapRight) {
+                    ball.vx = -ball.vx;
+                } else {
+                    ball.vy = -ball.vy;
+                }
+
+                this.hp--;
+                if (this.hp <= 0) {
+                    this.isAlive = false;
+                    return true;
+                }
+
+                return false;
+            }
+
+            draw(ctx) {
+                ctx.fillStyle = this.getColor();
+                ctx.fillRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
+
+                ctx.strokeStyle = 'rgb(50, 50, 50)';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
+            }
+        }
+
+        let canvas;
+        let ctx;
+        let screenArea;
+
+        let gameState;
+        let time;
+        let score;
+        let lives;
+
+        let paddle;
+        let ball;
+        let blocks;
+
+        let keyStatus = {
+            ArrowLeft: false,
+            ArrowRight: false
+        };
+
+        function createBlocks() {
+            blocks = [];
+            let rows = 6;
+            let cols = 8;
+            let startX = 25;
+            let startY = 60;
+            let spacingX = 50;
+            let spacingY = 25;
+
+            for (let row = 0; row < rows; row++) {
+                for (let col = 0; col < cols; col++) {
+                    let x = startX + col * spacingX;
+                    let y = startY + row * spacingY;
+                    let hp = 3 - Math.floor(row / 2); // 上の方が硬い
+                    blocks.push(new Block(x, y, hp));
+                }
+            }
+        }
+
+        function resetBall() {
+            ball = new Ball(canvas.width / 2, canvas.height - 100, 3, -4);
+        }
+
+        function checkCollisions() {
+            blocks.forEach(block => {
+                if (block.checkCollision(ball)) {
+                    score += block.score;
+                }
+            });
+        }
+
+        function drawObjects() {
+            function drawBackground() {
+                ctx.fillStyle = 'rgb(230, 230, 250)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+
+            function drawUnits() {
+                blocks.forEach(block => block.draw(ctx));
+                paddle.draw(ctx);
+                ball.draw(ctx);
+            }
+
+            function drawUI() {
+                ctx.fillStyle = 'rgb(0, 0, 0)';
+                ctx.font = '20px sans-serif';
+                ctx.textAlign = 'left';
+
+                ctx.fillText(`SCORE: ${score}`, 10, 30);
+                ctx.fillText(`残機: ${lives}`, 280, 30);
+            }
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawBackground();
+            drawUnits();
+            drawUI();
+        }
+
+        function endGame() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = 'rgb(255, 255, 255)';
+            ctx.font = 'bold 40px sans-serif';
+            ctx.textAlign = 'center';
+
+            let message;
+            if (gameState == 'gameOver') {
+                message = 'GAME OVER';
+            } else if (gameState == 'gameClear') {
+                message = 'GAME CLEAR!';
+            }
+
+            ctx.fillText(message, canvas.width / 2, canvas.height / 2 - 20);
+
+            ctx.font = 'bold 30px sans-serif';
+            ctx.fillText(`SCORE: ${score}`, canvas.width / 2, canvas.height / 2 + 30);
+
+            ctx.font = '20px sans-serif';
+            ctx.fillText('Press Enter to Restart', canvas.width / 2, canvas.height / 2 + 80);
+        }
+
+        function startGame() {
+            gameState = 'playing';
+            time = 0;
+            score = 0;
+            lives = 3;
+
+            paddle = new Paddle(canvas.width / 2, canvas.height - 40);
+            resetBall();
+            createBlocks();
+
+            requestAnimationFrame(mainLoop);
+        }
+
+        function mainLoop() {
+            paddle.move(keyStatus);
+            paddle.clamp(screenArea);
+
+            ball.move();
+            ball.bounceWall(screenArea);
+            ball.bouncePaddle(paddle);
+
+            checkCollisions();
+
+            blocks = blocks.filter(block => block.isAlive);
+
+            drawObjects();
+
+            // ボールを落とした
+            if (!ball.isAlive) {
+                lives--;
+                if (lives <= 0) {
+                    gameState = 'gameOver';
+                    endGame();
+                    return;
+                } else {
+                    resetBall();
+                }
+            }
+
+            // 全ブロック破壊
+            if (blocks.length == 0) {
+                gameState = 'gameClear';
+                endGame();
+                return;
+            }
+
+            time++;
+            requestAnimationFrame(mainLoop);
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key == 'Enter' && (gameState != 'playing')) {
+                startGame();
+            }
+            if (e.key in keyStatus) {
+                keyStatus[e.key] = true;
+                e.preventDefault();
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.key in keyStatus) {
+                keyStatus[e.key] = false;
+            }
+        });
+
+        window.addEventListener('DOMContentLoaded', () => {
+            canvas = document.getElementById('main-canvas');
+            ctx = canvas.getContext('2d');
+
+            screenArea = {
+                left: 0,
+                top: 0,
+                right: canvas.width,
+                bottom: canvas.height
+            };
+
+            startGame();
+        });
+
+    </script>
+</body>
+
+</html>
