@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <title>シューティングゲーム（2分耐久・超速版）</title>
+    <style>
+        body {
+            padding: 0;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        canvas {
+            background-color: #eee;
+            display: block;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="main-canvas" width="400" height="600"></canvas>
+
+    <script>
+        // --- 共通定数とクラスの定義 ---
+
+        const ACCEL_RATE = 1.5; // ゲームスピードを全体的に1.5倍に加速
+        const FINISH_TIME = 7200; // 制限時間を2分 (120秒 * 60フレーム/秒 = 7200フレーム) に短縮
+
+        // ------------------------------------
+        // --- 弾丸 (Bullet) クラス ---
+        // ------------------------------------
+        class Bullet {
+            constructor(x, y, vx, vy) {
+                this.x = x;
+                this.y = y;
+                this.vx = vx * ACCEL_RATE;
+                this.vy = vy * ACCEL_RATE;
+                this.color = 'rgb(100, 100, 100)';
+                this.width = 4;
+                this.height = 4;
+                this.damage = 10;
+                this.isAlive = true;
+            }
+
+            move() {
+                this.x += this.vx;
+                this.y += this.vy;
+            }
+            
+            cull(rect) {
+                if ((this.x < rect.left)
+                    || (this.x > rect.right)
+                    || (this.y < rect.top)
+                    || (this.y > rect.bottom)) {
+                    this.isAlive = false;
+                }
+            }
+
+            draw(ctx) {
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.ellipse(this.x, this.y, this.width / 2, this.height / 2, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        class PlayerBullet extends Bullet {
+            constructor(x, y, vx, vy) {
+                super(x, y, vx, vy);
+                this.color = 'rgb(100, 100, 255)';
+                this.width = 6;
+                this.height = 8;
+                this.damage = 10;
+            }
+        }
+
+        class EnemyBullet extends Bullet {
+            constructor(x, y, vx, vy) {
+                super(x, y, vx, vy);
+                this.color = 'rgb(255, 100, 100)';
+                this.width = 6;
+                this.height = 6;
+                this.damage = 10;
+            }
+        }
+
+        // ------------------------------------
+        // --- オプション (Option) クラス ---
+        // ------------------------------------
+        class Option {
+            constructor(player, index) {
+                this.player = player;
+                this.index = index; 
+                this.width = 8;
+                this.height = 8;
+                this.color = 'rgb(0, 255, 255)'; 
+                this.offset = 30; 
+                this.x = 0;
+                this.y = 0;
+            }
+
+            updatePosition() {
+                let sideMultiplier = this.index === 0 ? -1 : 1;
+                this.x = this.player.x + sideMultiplier * this.offset;
+                this.y = this.player.y + 10; 
+            }
+
+            shoot(bullets) {
+                // PlayerBulletのvyは-6 (加速後 -9)
+                bullets.push(new PlayerBullet(this.x, this.y, 0, -6));
+            }
+            
+            draw(ctx) {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
+            }
+        }
+
+        // ------------------------------------
+        // --- プレイヤー (Player) クラス ---
+        // ------------------------------------
+        class Player {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.color = 'rgb(0, 0, 255)';
+                this.width = 12;
+                this.height = 12;
+                this.speed = 3 * ACCEL_RATE; // 速度を加速
+                this.maxHp = 10; 
+                this.hp = this.maxHp;
+                this.lives = 2; // 残機
+                
+                this.baseShotCooldown = 15;
+                this.shotCooldownTime = this.baseShotCooldown;
+                this.shotCooldownCount = 0;
+                this.powerLevel = 0; // 0:単発, 1:オプションx1, 2:オプションx2
+                this.options = []; 
+                
+                this.isAlive = true;
+            }
+
+            move(keyStatus) {
+                if (keyStatus.ArrowLeft) {
+                    this.x -= this.speed;
+                }
+                if (keyStatus.ArrowRight) {
+                    this.x += this.speed;
+                }
+                if (keyStatus.ArrowUp) {
+                    this.y -= this.speed;
+                }
+                if (keyStatus.ArrowDown) {
+                    this.y += this.speed;
+                }
+            }
+
+            clamp(rect) {
+                if (this.x < rect.left) {
+                    this.x = rect.left;
+                } else if (this.x > rect.right) {
+                    this.x = rect.right;
+                }
+                if (this.y < rect.top) {
+                    this.y = rect.top;
+                } else if (this.y > rect.bottom) {
+                    this.y = rect.bottom;
+                }
+            }
+
+            shoot(bullets) {
+                this.shotCooldownCount++;
+                if (this.shotCooldownCount < this.shotCooldownTime) return;
+
+                bullets.push(
+                    new PlayerBullet(this.x, this.y, 0, -6)
+                );
+                
+                this.options.forEach(option => option.shoot(bullets));
+
+                this.shotCooldownCount = 0;
+            }
+
+            updatePower(score) {
+                let newLevel = this.powerLevel;
+
+                if (score >= 3000) { 
+                    newLevel = 2;
+                    this.shotCooldownTime = 5;
+                } else if (score >= 1500) { 
+                    newLevel = 1;
+                    this.shotCooldownTime = 10;
+                } else {
+                    newLevel = 0;
+                    this.shotCooldownTime = this.baseShotCooldown;
+                }
+
+                if (newLevel !== this.powerLevel) {
+                    this.powerLevel = newLevel;
+                    this.updateOptions();
+                }
+            }
+
+            updateOptions() {
+                this.options = [];
+                for (let i = 0; i < this.powerLevel; i++) {
+                    this.options.push(new Option(this, i));
+                }
+            }
+
+            draw(ctx) {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
+            }
+        }
+
+        // ------------------------------------
+        // --- 敵 (Enemy) クラス ---
+        // ------------------------------------
+        class Enemy {
+            constructor(x, y, vx, vy) {
+                this.x = x;
+                this.y = y;
+                this.vx = vx * ACCEL_RATE;
+                this.vy = vy * ACCEL_RATE;
+                this.color = 'rgb(255, 0, 0)';
+                this.width = 20;
+                this.height = 20;
+                this.hp = 10;
+                this.damage = 10;
+                this.score = 100;
+                this.isAlive = true;
+            }
+
+            move() {
+                this.x += this.vx;
+                this.y += this.vy;
+            }
+
+            cull(rect) {
+                if ((this.x < rect.left)
+                    || (this.x > rect.right)
+                    || (this.y < rect.top)
+                    || (this.y > rect.bottom)) {
+                    this.isAlive = false;
+                }
+            }
+
+            shoot(bullets, player) {
+                // 派生クラスで実装
+            }
+
+            draw(ctx) {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
+            }
+        }
+
+        // --- 派生ザコ敵クラス ---
+
+        class Zako1 extends Enemy {
+            constructor(x, y, vx, vy) {
+                super(x, y, vx, vy);
+                this.color = 'rgb(255, 0, 0)';
+                this.hp = 10;
+                this.score = 100;
+            }
+        }
+
+        class Zako2 extends Enemy {
+            constructor(x, y, vx, vy) {
+                super(x, y, vx, vy);
+                this.color = 'rgb(200, 0, 0)';
+                this.hp = 25;
+                this.shotCooldownTime = 80; 
+                this.shotCooldownCount = 0;
+                this.bulletSpeed = 5; 
+                this.score = 500;
+            }
+
+            shoot(bullets, player) {
+                this.shotCooldownCount++;
+                if (this.shotCooldownCount < this.shotCooldownTime) return;
+
+                let dx = player.x - this.x;
+                let dy = player.y - this.y;
+                let distance = Math.sqrt(dx * dx + dy * dy);
+                let vx = (dx / distance) * this.bulletSpeed;
+                let vy = (dy / distance) * this.bulletSpeed;
+
+                bullets.push(
+                    new EnemyBullet(this.x, this.y, vx, vy)
+                );
+
+                this.shotCooldownCount = 0;
+            }
+        }
+        
+        // --- 強化されたザコ敵 (耐久戦後半用) ---
+
+        class SuperZako2 extends Zako2 {
+            constructor(x, y, vx, vy) {
+                super(x, y, vx, vy);
+                this.color = 'rgb(150, 0, 0)';
+                this.hp = 50; // HP増加
+                this.shotCooldownTime = 50; // 攻撃頻度増加 (80 -> 50)
+                this.score = 1200;
+            }
+        }
+
+        class Zako3 extends Enemy {
+            constructor(x, y, vx, vy) {
+                super(x, y, vx, vy);
+                this.color = 'rgb(150, 0, 0)';
+                this.width = 24;
+                this.height = 24;
+                this.hp = 50;
+                this.shotCooldownTime = 90; 
+                this.shotCooldownCount = 0;
+                this.bulletSpeed = 5; 
+                this.score = 1000;
+                this.spread = Math.PI / 12; 
+            }
+
+            shoot(bullets, player) {
+                this.shotCooldownCount++;
+                if (this.shotCooldownCount < this.shotCooldownTime) return;
+
+                let dx = player.x - this.x;
+                let dy = player.y - this.y;
+                let distance = Math.sqrt(dx * dx + dy * dy);
+                let baseVx = (dx / distance) * this.bulletSpeed;
+                let baseVy = (dy / distance) * this.bulletSpeed;
+
+                bullets.push(
+                    new EnemyBullet(this.x, this.y, baseVx, baseVy)
+                );
+
+                let angle = Math.atan2(baseVy, baseVx);
+                
+                let vx1 = Math.cos(angle + this.spread) * this.bulletSpeed;
+                let vy1 = Math.sin(angle + this.spread) * this.bulletSpeed;
+                let vx2 = Math.cos(angle - this.spread) * this.bulletSpeed;
+                let vy2 = Math.sin(angle - this.spread) * this.bulletSpeed;
+
+                bullets.push(new EnemyBullet(this.x, this.y, vx1, vy1));
+                bullets.push(new EnemyBullet(this.x, this.y, vx2, vy2));
+
+                this.shotCooldownCount = 0;
+            }
+        }
+
+        class SuperZako3 extends Zako3 {
+            constructor(x, y, vx, vy) {
+                super(x, y, vx, vy);
+                this.color = 'rgb(100, 0, 0)';
+                this.hp = 100; // HP増加
+                this.shotCooldownTime = 60; // 攻撃頻度増加 (90 -> 60)
+                this.spread = Math.PI / 8; // 拡散角度を拡大
+                this.score = 2500;
+            }
+        }
+        
+        class HomingZako extends Enemy {
+            constructor(x, y, vx, vy) {
+                super(x, y, vx, vy);
+                this.color = 'rgb(255, 150, 0)'; 
+                this.width = 24;
+                this.height = 24;
+                this.hp = 30;
+                this.shotCooldownTime = 60; 
+                this.shotCooldownCount = 0;
+                this.bulletSpeed = 4; 
+                this.score = 700;
+            }
+
+            shoot(bullets, player) {
+                this.shotCooldownCount++;
+                if (this.shotCooldownCount < this.shotCooldownTime) return;
+
+                let dx = player.x - this.x;
+                let dy = player.y - this.y;
+                let distance = Math.sqrt(dx * dx + dy * dy);
+                let vx = (dx / distance) * this.bulletSpeed;
+                let vy = (dy / distance) * this.bulletSpeed;
+
+                bullets.push(
+                    new EnemyBullet(this.x, this.y, vx, vy)
+                );
+
+                this.shotCooldownCount = 0;
+            }
+        }
+
+        class SuperHomingZako extends HomingZako {
+            constructor(x, y, vx, vy) {
+                super(x, y, vx, vy);
+                this.color = 'rgb(200, 100, 0)'; 
+                this.hp = 60; // HP増加
+                this.shotCooldownTime = 40; // 攻撃頻度増加 (60 -> 40)
+                this.bulletSpeed = 5; 
+                this.score = 1500;
+            }
+        }
+
+        class Boss1 extends Enemy {
+            constructor(x, y, vx, vy) {
+                super(x, y, vx, vy);
+                this.color = 'rgb(80, 0, 0)';
+                this.width = 60;
+                this.height = 60;
+                this.hp = 1000;
+                this.shotCooldownTime = 30; 
+                this.shotCooldownCount = 0;
+                this.bulletSpeed = 5; 
+                this.score = 10000;
+
+                this.state = "enter";
+                this.stayTime = 2000;
+                this.stayCount = 0;
+
+                this.targetY = 100;
+            }
+
+            move() {
+                if (this.state == "enter") {
+                    this.y += this.vy;
+
+                    if (this.y >= this.targetY) {
+                        this.y = this.targetY;
+                        this.state = "stay";
+                    }
+                } else if (this.state == "stay") {
+                    this.stayCount++;
+                    if (this.stayCount >= this.stayTime) {
+                        this.state = "leave";
+                    }
+                } else if (this.state == "leave") {
+                    this.y -= this.vy;
+                }
+            }
+
+            shoot(bullets, player) {
+                this.shotCooldownCount++;
+                if (this.state == "enter") return;
+                if (this.shotCooldownCount < this.shotCooldownTime) return;
+
+                let numBullets = 16;
+                let baseAngle = Math.atan2(player.y - this.y, player.x - this.x);
+
+                for (let i = 0; i < numBullets; i++) {
+                    let angle = baseAngle + (2 * Math.PI) * (i / numBullets);
+                    let vx = Math.cos(angle) * this.bulletSpeed;
+                    let vy = Math.sin(angle) * this.bulletSpeed;
+                    bullets.push(new EnemyBullet(this.x, this.y, vx, vy));
+                }
+
+                this.shotCooldownCount = 0;
+            }
+        }
+        
+        // ------------------------------------
+        // --- アイテム (Item) クラス ---
+        // ------------------------------------
+        class Item {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.vy = 1.5 * ACCEL_RATE;
+                this.color = 'rgb(255, 255, 0)';
+                this.width = 16;
+                this.height = 16;
+                this.isAlive = true;
+            }
+
+            move() {
+                this.y += this.vy;
+            }
+            
+            cull(rect) {
+                if ((this.y < rect.top)
+                    || (this.y > rect.bottom)) {
+                    this.isAlive = false;
+                }
+            }
+
+            applyEffect(player) {
+                
+            }
+
+            draw(ctx) {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
+            }
+        }
+
+        class LifeItem extends Item {
+            constructor(x, y) {
+                super(x, y);
+                this.color = 'rgb(0, 255, 0)'; 
+                this.effect = 1; 
+            }
+
+            applyEffect(player) {
+                player.lives += this.effect;
+            }
+        }
+        
+        class HealItem extends Item {
+            constructor(x, y) {
+                super(x, y);
+                this.color = 'rgb(255, 0, 255)'; 
+            }
+
+            applyEffect(player) {
+                player.hp = player.maxHp; 
+            }
+        }
+
+        /**
+         * ステージデータを生成し、配列として返す関数 (舞台設定)
+         */
+        function getStageData() {
+            let data = [];
+
+            // --- フェーズ 1: 道中 (～3200フレーム) ---
+            data.push(
+                // 道中敵をさらに増加
+                { time: 100, enemyClass: Zako1, px: 0.9, vy: 2, vx: -2 },
+                { time: 100, enemyClass: Zako1, px: 0.8, vy: 2, vx: -2 },
+                { time: 100, enemyClass: Zako1, px: 0.7, vy: 2, vx: -2 },
+                { time: 120, enemyClass: Zako1, px: 0.9, vy: 2, vx: -2 },
+                { time: 120, enemyClass: Zako1, px: 0.8, vy: 2, vx: -2 },
+                { time: 120, enemyClass: Zako1, px: 0.7, vy: 2, vx: -2 },
+                { time: 140, enemyClass: Zako1, px: 0.9, vy: 2, vx: -2 },
+                { time: 140, enemyClass: Zako1, px: 0.8, vy: 2, vx: -2 },
+                { time: 140, enemyClass: Zako1, px: 0.7, vy: 2, vx: -2 },
+                { time: 160, enemyClass: Zako1, px: 0.9, vy: 2, vx: -2 },
+                { time: 160, enemyClass: Zako1, px: 0.8, vy: 2, vx: -2 },
+                { time: 160, enemyClass: Zako1, px: 0.7, vy: 2, vx: -2 },
+
+                { time: 300, enemyClass: Zako1, px: 0.1, vy: 2, vx: 2 },
+                { time: 300, enemyClass: Zako1, px: 0.2, vy: 2, vx: 2 },
+                { time: 300, enemyClass: Zako1, px: 0.3, vy: 2, vx: 2 },
+                { time: 320, enemyClass: Zako1, px: 0.1, vy: 2, vx: 2 },
+                { time: 320, enemyClass: Zako1, px: 0.2, vy: 2, vx: 2 },
+                { time: 320, enemyClass: Zako1, px: 0.3, vy: 2, vx: 2 },
+                { time: 340, enemyClass: Zako1, px: 0.1, vy: 2, vx: 2 },
+                { time: 340, enemyClass: Zako1, px: 0.2, vy: 2, vx: 2 },
+                { time: 340, enemyClass: Zako1, px: 0.3, vy: 2, vx: 2 },
+                { time: 360, enemyClass: Zako1, px: 0.1, vy: 2, vx: 2 },
+                { time: 360, enemyClass: Zako1, px: 0.2, vy: 2, vx: 2 },
+                { time: 360, enemyClass: Zako1, px: 0.3, vy: 2, vx: 2 },
+
+                { time: 500, enemyClass: Zako2, px: 0.5, vy: 1.5, vx: 0 },
+                { time: 500, enemyClass: Zako2, px: 0.2, vy: 1.5, vx: 0 },
+                { time: 500, enemyClass: Zako2, px: 0.8, vy: 1.5, vx: 0 },
+                { time: 510, enemyClass: Zako1, px: 0.3, vy: 1.5, vx: 0 },
+                { time: 510, enemyClass: Zako1, px: 0.4, vy: 1.5, vx: 0 },
+                { time: 510, enemyClass: Zako1, px: 0.6, vy: 1.5, vx: 0 },
+                { time: 510, enemyClass: Zako1, px: 0.7, vy: 1.5, vx: 0 },
+                { time: 510, enemyClass: Zako1, px: 0.5, vy: 1.5, vx: 0 },
+                { time: 530, enemyClass: Zako2, px: 0.2, vy: 1.5, vx: 0 }, 
+                { time: 530, enemyClass: Zako2, px: 0.8, vy: 1.5, vx: 0 }, 
+                
+                { time: 700, enemyClass: Zako2, px: 1, vy: 1, vx: -1 },
+                { time: 700, enemyClass: Zako1, px: 0.9, vy: 1, vx: -1 },
+                { time: 715, enemyClass: Zako1, px: 0.9, vy: 1, vx: -1 },
+                { time: 730, enemyClass: Zako2, px: 1, vy: 1, vx: -1 },
+                { time: 730, enemyClass: Zako1, px: 0.9, vy: 1, vx: -1 },
+                { time: 745, enemyClass: Zako1, px: 0.9, vy: 1, vx: -1 },
+                { time: 760, enemyClass: Zako1, px: 1, vy: 1, vx: -1 },
+                { time: 760, enemyClass: Zako2, px: 0.8, vy: 1, vx: -1 },
+                { time: 775, enemyClass: Zako1, px: 0.9, vy: 1, vx: -1 },
+                { time: 790, enemyClass: Zako1, px: 1, vy: 1, vx: -1 },
+                { time: 805, enemyClass: Zako1, px: 0.9, vy: 1, vx: -1 },
+                { time: 820, enemyClass: Zako1, px: 1, vy: 1, vx: -1 }, 
+
+                { time: 850, enemyClass: Zako2, px: 0, vy: 1, vx: 1 },
+                { time: 850, enemyClass: Zako1, px: 0.1, vy: 1, vx: 1 },
+                { time: 865, enemyClass: Zako1, px: 0.1, vy: 1, vx: 1 },
+                { time: 880, enemyClass: Zako2, px: 0, vy: 1, vx: 1 },
+                { time: 880, enemyClass: Zako1, px: 0.1, vy: 1, vx: 1 },
+                { time: 895, enemyClass: Zako1, px: 0.1, vy: 1, vx: 1 },
+                { time: 910, enemyClass: Zako1, px: 0, vy: 1, vx: 1 },
+                { time: 910, enemyClass: Zako2, px: 0.2, vy: 1, vx: 1 },
+                { time: 925, enemyClass: Zako1, px: 0.1, vy: 1, vx: 1 },
+                { time: 940, enemyClass: Zako1, px: 0, vy: 1, vx: 1 },
+                { time: 955, enemyClass: Zako1, px: 0.1, vy: 1, vx: 1 },
+                { time: 970, enemyClass: Zako1, px: 0, vy: 1, vx: 1 }, 
+
+                { time: 1200, enemyClass: Zako1, px: 0.8, vy: 0.5, vx: 0 },
+                { time: 1200, enemyClass: Zako1, px: 0.2, vy: 0.5, vx: 0 },
+                { time: 1220, enemyClass: Zako1, px: 0.7, vy: 0.5, vx: 0 },
+                { time: 1220, enemyClass: Zako1, px: 0.9, vy: 0.5, vx: 0 },
+                { time: 1220, enemyClass: Zako1, px: 0.3, vy: 0.5, vx: 0 },
+                { time: 1220, enemyClass: Zako1, px: 0.1, vy: 0.5, vx: 0 },
+                { time: 1260, enemyClass: Zako3, px: 0.8, vy: 0.5, vx: 0 },
+                { time: 1260, enemyClass: Zako3, px: 0.2, vy: 0.5, vx: 0 },
+                { time: 1290, enemyClass: HomingZako, px: 0.5, vy: 1.5, vx: 0 }, 
+
+                { time: 1350, enemyClass: HomingZako, px: 0.5, vy: 1, vx: 0 }, 
+                { time: 1380, enemyClass: HomingZako, px: 0.3, vy: 1, vx: 0 }, 
+                { time: 1380, enemyClass: HomingZako, px: 0.7, vy: 1, vx: 0 }, 
+                { time: 1400, enemyClass: Zako2, px: 0.1, vy: 1.5, vx: 0 },
+                { time: 1400, enemyClass: Zako2, px: 0.9, vy: 1.5, vx: 0 },
+
+                { time: 1500, enemyClass: Zako1, px: 0.2, vy: 0.5, vx: 0 },
+                { time: 1500, enemyClass: Zako1, px: 0.8, vy: 0.5, vx: 0 },
+                { time: 1520, enemyClass: Zako1, px: 0.1, vy: 0.5, vx: 0 },
+                { time: 1520, enemyClass: Zako1, px: 0.3, vy: 0.5, vx: 0 },
+                { time: 1520, enemyClass: Zako1, px: 0.9, vy: 0.5, vx: 0 },
+                { time: 1520, enemyClass: Zako1, px: 0.7, vy: 0.5, vx: 0 },
+                { time: 1560, enemyClass: Zako3, px: 0.2, vy: 0.5, vx: 0 },
+                { time: 1560, enemyClass: Zako3, px: 0.8, vy: 0.5, vx: 0 },
+                { time: 1600, enemyClass: HomingZako, px: 0.5, vy: 1.5, vx: 0 },
+
+                { time: 2300, enemyClass: Zako3, px: 0.2, vy: 0.5, vx: 0 },
+                { time: 2300, enemyClass: Zako3, px: 0.8, vy: 0.5, vx: 0 },
+                { time: 2320, enemyClass: Zako3, px: 0.35, vy: 0.5, vx: 0 },
+                { time: 2320, enemyClass: Zako3, px: 0.65, vy: 0.5, vx: 0 },
+                { time: 2340, enemyClass: Zako3, px: 0.25, vy: 0.5, vx: 0 },
+                { time: 2340, enemyClass: Zako3, px: 0.75, vy: 0.5, vx: 0 },
+                { time: 2350, enemyClass: Zako3, px: 0.5, vy: 0.5, vx: 0 },
+                { time: 2370, enemyClass: HomingZako, px: 0.5, vy: 1.5, vx: 0 },
+
+                // ボス出現
+                { time: 3200, enemyClass: Boss1, px: 0.5, vy: 0.5, vx: 0 }
+            );
+                
+            // --- フェーズ 2: ボス撃破後の超激化耐久戦フェーズ (4000フレーム以降) ---
+            
+            data.push(
+                // 序盤の耐久戦
+                { time: 4000, enemyClass: Zako1, px: 0.1, vy: 2.5, vx: 1 },
+                { time: 4000, enemyClass: Zako1, px: 0.9, vy: 2.5, vx: -1 },
+                { time: 4025, enemyClass: SuperHomingZako, px: 0.4, vy: 1.5, vx: 0 },
+                
+                { time: 4100, enemyClass: SuperZako2, px: 0.1, vy: 1.5, vx: 0.5 },
+                { time: 4100, enemyClass: SuperZako2, px: 0.9, vy: 1.5, vx: -0.5 },
+                { time: 4150, enemyClass: SuperZako3, px: 0.5, vy: 1, vx: 0 }, 
+                
+                { time: 4200, enemyClass: Zako1, px: 0.5, vy: 2.5, vx: 0 },
+                { time: 4200, enemyClass: Zako1, px: 0.6, vy: 2.5, vx: -0.5 },
+                { time: 4200, enemyClass: Zako1, px: 0.7, vy: 2.5, vx: -1 },
+                { time: 4225, enemyClass: SuperHomingZako, px: 0.6, vy: 1.5, vx: 0 },
+                
+                { time: 4300, enemyClass: SuperZako2, px: 0.3, vy: 1.5, vx: 0.5 },
+                { time: 4300, enemyClass: SuperZako2, px: 0.7, vy: 1.5, vx: -0.5 },
+                { time: 4350, enemyClass: SuperZako3, px: 0.2, vy: 1, vx: 0 },
+                { time: 4350, enemyClass: SuperZako3, px: 0.8, vy: 1, vx: 0 }
+            );
+                
+            // 4800フレームから制限時間 (7200) まで、超密集ウェーブを生成 (SuperZakoメイン)
+            for (let t = 4800; t < FINISH_TIME; t += 30) {
+                data.push({ time: t, enemyClass: Zako1, px: 0.05, vy: 2.5, vx: 1.5 });
+                data.push({ time: t, enemyClass: Zako1, px: 0.95, vy: 2.5, vx: -1.5 });
+                if (t % 60 === 0) {
+                    data.push({ time: t, enemyClass: SuperZako2, px: 0.4, vy: 1.8, vx: 0 });
+                    data.push({ time: t, enemyClass: SuperZako2, px: 0.6, vy: 1.8, vx: 0 });
+                }
+                if (t % 150 === 0) {
+                    data.push({ time: t, enemyClass: SuperZako3, px: 0.2, vy: 1.2, vx: 0 });
+                    data.push({ time: t, enemyClass: SuperZako3, px: 0.8, vy: 1.2, vx: 0 });
+                }
+                if (t % 70 === 0) {
+                    data.push({ time: t, enemyClass: SuperHomingZako, px: Math.random(), vy: 2.2, vx: 0 }); 
+                }
+            }
+        
+            return data;
+        }
+
+
+        // ------------------------------------
+        // --- ゲーム管理ロジック ---
+        // ------------------------------------
+
+        let canvas;
+        let ctx;
+        let screenArea;
+        let activeArea;
+
+        let gameState;
+        let time;
+        let score;
+
+        let player;
+        let enemies;
+        let playerBullets;
+        let enemyBullets;
+        let items; 
+        
+        let stageData; // ステージデータはここで保持される
+
+        let keyStatus = {
+            ArrowLeft: false,
+            ArrowRight: false,
+            ArrowUp: false,
+            ArrowDown: false
+        };
+
+
+        function checkCollisions() {
+            function isColliding(objA, objB) {
+                let aLeft = objA.x - objA.width / 2;
+                let aRight = objA.x + objA.width / 2;
+                let aTop = objA.y - objA.height / 2;
+                let aBottom = objA.y + objA.height / 2;
+
+                let bLeft = objB.x - objB.width / 2;
+                let bRight = objB.x + objB.width / 2;
+                let bTop = objB.y - objB.height / 2;
+                let bBottom = objB.y + objB.height / 2;
+
+                if (aLeft > bRight) return false;
+                if (aRight < bLeft) return false;
+                if (aTop > bBottom) return false;
+                if (aBottom < bTop) return false;
+
+                return true;
+            }
+
+            // プレイヤー弾 vs 敵
+            playerBullets.forEach(bullet => {
+                let bulletHit = false;
+                enemies.forEach(enemy => {
+                    if (!enemy.isAlive || bulletHit) return;
+                    if (isColliding(bullet, enemy)) {
+                        bulletHit = true;
+                        bullet.isAlive = false;
+                        enemy.hp -= bullet.damage;
+                        if (enemy.hp <= 0) {
+                            enemy.isAlive = false;
+                            score += enemy.score;
+                            
+                            // アイテムドロップ判定 (HP回復: 15%, 残機UP: 5%)
+                            let dropChance = Math.random();
+                            if (dropChance < 0.15) { 
+                                items.push(new HealItem(enemy.x, enemy.y));
+                            } else if (dropChance < 0.20) { 
+                                items.push(new LifeItem(enemy.x, enemy.y));
+                            }
+                        }
+                    }
+                });
+            });
+
+            // 敵弾 vs プレイヤー
+            enemyBullets.forEach(bullet => {
+                if (isColliding(bullet, player)) {
+                    bullet.isAlive = false;
+                    player.hp -= bullet.damage;
+                }
+            });
+
+            // 敵 vs プレイヤー（体当たり）
+            enemies.forEach(enemy => {
+                if (isColliding(enemy, player)) {
+                    enemy.isAlive = false;
+                    player.hp -= enemy.damage;
+                }
+            });
+            
+            // アイテム vs プレイヤー
+            items.forEach(item => {
+                if (isColliding(item, player)) {
+                    item.isAlive = false;
+                    item.applyEffect(player);
+                }
+            });
+        }
+
+        function spawnEnemies() {
+            // ステージデータから現在の時間に一致する敵を抽出
+            let newEnemies = stageData.filter(data => data.time == time);
+
+            newEnemies.forEach(newEnemy => {
+                let x = canvas.width * newEnemy.px;
+                let y = -canvas.height * 0.05;
+                enemies.push(new newEnemy.enemyClass(x, y, newEnemy.vx, newEnemy.vy));
+            });
+        }
+
+        function drawObjects() {
+            function drawBackground() {
+                ctx.fillStyle = 'rgb(200, 255, 200)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+
+            function drawUnits() {
+                // 描画順: 敵弾 -> 敵 -> アイテム -> プレイヤー弾 -> オプション -> プレイヤー
+                enemyBullets.forEach(bullet => bullet.draw(ctx));
+                enemies.forEach(enemy => enemy.draw(ctx));
+                items.forEach(item => item.draw(ctx));
+                playerBullets.forEach(bullet => bullet.draw(ctx));
+                
+                player.options.forEach(option => option.draw(ctx)); 
+                
+                player.draw(ctx);
+            }
+
+            function drawUI() {
+                ctx.fillStyle = 'rgb(0, 0, 0)';
+                ctx.font = '20px sans-serif';
+                ctx.textAlign = 'left';
+
+                ctx.fillText(`SCORE: ${score}`, 10, 30);
+                ctx.fillText(`HP: ${player.hp}`, 10, 60);
+                ctx.fillText(`LIVES: ${player.lives}`, 10, 90); 
+                ctx.fillText(`POWER: ${player.powerLevel} / 2`, 10, 120); 
+                
+                let remainingTime = Math.max(0, FINISH_TIME - time);
+                let seconds = Math.floor(remainingTime / 60);
+                
+                ctx.fillText(`TIME LEFT: ${seconds}s`, 10, 150); 
+                
+                if (time > 4000) {
+                    ctx.fillStyle = 'rgb(255, 0, 0)';
+                    ctx.font = '30px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('FINAL SUPER WAVE', canvas.width / 2, canvas.height / 2);
+                }
+            }
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawBackground();
+            drawUnits();
+            drawUI();
+        }
+
+        function endGame() {
+            ctx.fillStyle = 'rgb(0, 0, 0)';
+            ctx.font = '20px sans-serif';
+            ctx.textAlign = 'center';
+
+            let message;
+            if (gameState == 'gameOver') {
+                message = 'GAME OVER';
+            } 
+            else if (gameState == 'gameClear') {
+                message = '2 MINUTES SURVIVED! GAME CLEAR!'; 
+            }
+
+            ctx.fillText(message, canvas.width / 2, canvas.height / 2);
+            ctx.fillText(`SCORE: ${score}`, canvas.width / 2, canvas.height / 2 + 40);
+            ctx.fillText('Press Enter to Restart', canvas.width / 2, canvas.height / 2 + 80);
+        }
+
+        function startGame() {
+            gameState = 'playing';
+            time = 0;
+            score = 0;
+            
+            stageData = getStageData(); 
+
+            player = new Player(canvas.width * 0.5, canvas.height * 0.9);
+            player.updatePower(0); 
+
+            enemies = [];
+            playerBullets = [];
+            enemyBullets = [];
+            items = []; 
+
+            requestAnimationFrame(mainLoop);
+        }
+
+        function mainLoop() {
+            // 移動処理
+            enemyBullets.forEach(bullet => bullet.move());
+            enemies.forEach(enemy => enemy.move());
+            playerBullets.forEach(bullet => bullet.move());
+            items.forEach(item => item.move());
+            player.move(keyStatus);
+            player.clamp(screenArea);
+            
+            // プレイヤー/オプションの状態更新
+            player.options.forEach(option => option.updatePosition());
+            player.updatePower(score); 
+
+            // 画面外判定
+            enemyBullets.forEach(bullet => bullet.cull(activeArea));
+            enemies.forEach(enemy => enemy.cull(activeArea));
+            playerBullets.forEach(bullet => bullet.cull(activeArea));
+            items.forEach(item => item.cull(activeArea)); 
+
+            // 衝突判定
+            checkCollisions();
+
+            // 不要オブジェクトの除去
+            enemyBullets = enemyBullets.filter(bullet => bullet.isAlive);
+            enemies = enemies.filter(enemy => enemy.isAlive);
+            playerBullets = playerBullets.filter(bullet => bullet.isAlive);
+            items = items.filter(item => item.isAlive); 
+
+            // 攻撃処理
+            enemies.forEach(enemy => enemy.shoot(enemyBullets, player));
+            player.shoot(playerBullets);
+
+            // 敵の出現
+            spawnEnemies();
+
+            // 描画
+            drawObjects();
+
+            // ゲームオーバー/残機判定
+            if (player.hp <= 0) {
+                if (player.lives > 0) {
+                    player.lives--;
+                    player.hp = player.maxHp; // HP全回復で復活
+                } else {
+                    player.isAlive = false;
+                    gameState = 'gameOver';
+                    endGame();
+                    return;
+                }
+            }
+
+            // クリア判定
+            if (time >= FINISH_TIME) {
+                gameState = 'gameClear';
+                endGame();
+                return;
+            }
+
+            time++;
+            requestAnimationFrame(mainLoop);
+        }
+
+        // --- イベントリスナー ---
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key == 'Enter' && (gameState != 'playing')) {
+                startGame();
+            }
+            if (e.key in keyStatus) {
+                keyStatus[e.key] = true;
+                e.preventDefault();
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.key in keyStatus) {
+                keyStatus[e.key] = false;
+            }
+        });
+
+        window.addEventListener('DOMContentLoaded', () => {
+            canvas = document.getElementById('main-canvas');
+            ctx = canvas.getContext('2d');
+
+            screenArea = {
+                left: 0,
+                top: 0,
+                right: canvas.width,
+                bottom: canvas.height
+            };
+            activeArea = {
+                left: canvas.width * -0.1,
+                top: canvas.height * -0.1,
+                right: canvas.width * 1.1,
+                bottom: canvas.height * 1.1
+            };
+
+            startGame();
+        });
+
+    </script>
+</body>
+
+</html>

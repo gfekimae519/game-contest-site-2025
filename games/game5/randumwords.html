@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ポケモン151匹わかるかな？ - 1分間チャレンジ</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #762f07;
+        }
+        .container {
+            text-align: center;
+            background: white;
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            width: 350px;
+            position: relative;
+        }
+        .container p {
+            font-size: large;
+            font-weight: bold;
+            line-height: 1.8;
+            margin-top: 0;
+        }
+        .container span { color: red; }
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+            color: #555;
+        }
+        .timer-container {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #e67e22;
+        }
+        #high-score { color: #e74c3c; font-weight: bold; }
+        #score { color: #3498db; font-weight: bold; }
+        
+        .scrambled-word {
+            font-size: 2.2rem;
+            font-weight: bold;
+            letter-spacing: 4px;
+            color: #2c3e50;
+            margin: 15px 0;
+            padding: 15px;
+            background: #f9f9f9;
+            border: 2px dashed #ddd;
+            border-radius: 10px;
+            min-height: 1.2em;
+            word-break: break-all;
+        }
+        input {
+            padding: 12px;
+            width: 100%;
+            box-sizing: border-box;
+            margin-bottom: 20px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 1.2rem;
+            outline: none;
+        }
+        input:disabled { background-color: #eee; cursor: not-allowed; }
+        
+        .buttons { display: flex; gap: 10px; }
+        button {
+            flex: 1;
+            padding: 12px;
+            cursor: pointer;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 1rem;
+            transition: opacity 0.2s;
+        }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .btn-check { background-color: #3498db; color: white; }
+        .btn-skip { background-color: #95a5a6; color: white; }
+        .btn-start { background-color: #ffd900; color: #762f07; width: 100%; margin-top: 10px; }
+        
+        #message { margin-top: 15px; font-weight: bold; height: 1.5em; }
+        
+        .overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255,255,255,0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            border-radius: 15px;
+            z-index: 10;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <p>キミは何匹わかるかな？
+        <br>1分間でたくさん答えられた人が
+        <br><span>チャンピオン</span>だよ。</p>
+
+    <div id="game-over" class="overlay">
+        <h2>終了！</h2>
+        <p>最終スコア: <span id="final-score">0</span></p>
+        <button class="btn-start" onclick="startGame()">もう一度挑戦</button>
+    </div>
+
+    <div class="stats">
+        <div>スコア: <span id="score">0</span></div>
+        <div>最高点: <span id="high-score">0</span></div>
+    </div>
+    
+    <div class="timer-container">
+        残り時間: <span id="timer">60</span>秒
+    </div>
+    
+    <div id="scrambled-word" class="scrambled-word">PRESS START</div>
+    
+    <input type="text" id="user-input" placeholder="答えを入力..." autocomplete="off" disabled>
+    
+    <div class="buttons">
+        <button id="check-btn" class="btn-check" onclick="checkAnswer()" disabled>回答 (Enter)</button>
+        <button id="skip-btn" class="btn-skip" onclick="skipQuestion()" disabled>スキップ</button>
+    </div>
+    
+    <button id="start-btn" class="btn-start" onclick="startGame()">ゲーム開始</button>
+    
+    <div id="message"></div>
+</div>
+
+<script>
+    const allPokemon = [  
+    "フシギダネ","フシギソウ","フシギバナ","ヒトカゲ","リザード","リザードン","ゼニガメ","カメール","カメックス",
+    "キャタピー","トランセル","バタフリー","ビードル","コクーン","スピアー","ポッポ","ピジョン","ピジョット",
+    "コラッタ","ラッタ","オニスズメ","オニドリル","アーボ","アーボック","ピカチュウ","ライチュウ","サンド","サンドパン",
+    "ニドラン♀","ニドリーナ","ニドクイン","ニドラン♂","ニドリーノ","ニドキング","ピッピ","ピクシー","ロコン","キュウコン","プリン","プクリン",
+    "ズバット","ゴルバット","ナゾノクサ","クサイハナ","ラフレシア","パラス","パラセクト","コンパン","モルフォン","ディグダ","ダグトリオ",
+    "ニャース","ペルシアン","コダック","ゴルダック","マンキー","オコリザル","ガーディ","ウインディ","ニョロモ","ニョロゾ","ニョロボン",
+    "ケーシィ","ユンゲラー","フーディン","ワンリキー","ゴーリキー","カイリキー","マダツボミ","ウツドン","ウツボット",
+    "メノクラゲ","ドククラゲ","イシツブテ","ゴローン","ゴローニャ","ポニータ","ギャロップ","ヤドン","ヤドラン","コイル","レアコイル",
+    "カモネギ","ドードー","ドードリオ","パウワウ","ジュゴン","ベトベター","ベトベトン","シェルダー","パルシェン",
+    "ゴース","ゴースト","ゲンガー","イワーク","スリープ","スリーパー","クラブ","キングラー","ビリリダマ","マルマイン",
+    "タマタマ","ナッシー","カラカラ","ガラガラ","サワムラー","エビワラー","ベロリンガ","ドガース","マタドガス","サイホーン","サイドン",
+    "ラッキー","モンジャラ","ガルーラ","タッツー","シードラ","トサキント","アズマオウ","ヒトデマン","スターミー","バリヤード","ストライク",
+    "ルージュラ","エレブー","ブーバー","カイロス","ケンタロス","コイキング","ギャラドス","ラプラス","メタモン",
+    "イーブイ","シャワーズ","サンダース","ブースター","ポリゴン","オムナイト","オムスター","カブト","カブトプス","プテラ","カビゴン",
+    "フリーザー","サンダー","ファイヤー","ミニリュウ","ハクリュー","カイリュー","ミュウツー","ミュウ"
+    ];
+
+    let playList = []; // 今回のプレイで使うシャッフルされたリスト
+    let currentWord = "";
+    let score = 0;
+    let timeLeft = 60;
+    let timerId = null;
+    let isSolved = false;
+    let highScore = localStorage.getItem("wordGameHighScore") || 0;
+
+    const inputField = document.getElementById("user-input");
+    const scoreDisplay = document.getElementById("score");
+    const highScoreDisplay = document.getElementById("high-score");
+    const timerDisplay = document.getElementById("timer");
+    const messageDisplay = document.getElementById("message");
+    const wordDisplay = document.getElementById("scrambled-word");
+    const startBtn = document.getElementById("start-btn");
+    const checkBtn = document.getElementById("check-btn");
+    const skipBtn = document.getElementById("skip-btn");
+    const gameOverOverlay = document.getElementById("game-over");
+
+    highScoreDisplay.innerText = highScore;
+
+    // 配列そのものをシャッフルする関数（Fisher-Yates）
+    function shuffleArray(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+    }
+
+    function startGame() {
+        score = 0;
+        timeLeft = 60;
+        scoreDisplay.innerText = score;
+        timerDisplay.innerText = timeLeft;
+        gameOverOverlay.style.display = "none";
+        startBtn.style.display = "none";
+        
+        inputField.disabled = false;
+        checkBtn.disabled = false;
+        skipBtn.disabled = false;
+        
+        // ★重要：151匹のリストをコピーしてシャッフルし、今回の「山札」を作る
+        playList = shuffleArray([...allPokemon]);
+        
+        nextQuestion();
+        startTimer();
+    }
+
+    function startTimer() {
+        if (timerId) clearInterval(timerId);
+        timerId = setInterval(() => {
+            timeLeft--;
+            timerDisplay.innerText = timeLeft;
+            if (timeLeft <= 10) timerDisplay.style.color = "red";
+            else timerDisplay.style.color = "#e67e22";
+            if (timeLeft <= 0) endGame();
+        }, 1000);
+    }
+
+    function nextQuestion() {
+        if (playList.length === 0) {
+            // もし1分以内に151匹使い切ったら、再度シャッフルして補充
+            playList = shuffleArray([...allPokemon]);
+        }
+
+        isSolved = false;
+        // ★山札（playList）から1つ取り出す
+        currentWord = playList.pop();
+        
+        wordDisplay.innerText = scrambleLetters(currentWord);
+        inputField.value = "";
+        inputField.style.backgroundColor = "white";
+        messageDisplay.innerText = "";
+        inputField.focus();
+    }
+
+    // 文字順を入れ替える関数
+    function scrambleLetters(word) {
+        let array = word.split('');
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        let result = array.join('');
+        // 元の単語と同じになってしまったら、もう一度シャッフル
+        return (result === word) ? scrambleLetters(word) : result;
+    }
+
+    function checkAnswer() {
+        if (isSolved || timeLeft <= 0) return;
+
+        const userInput = inputField.value.trim();
+
+        if (userInput === currentWord) {
+            isSolved = true;
+            score += 10;
+            scoreDisplay.innerText = score;
+            messageDisplay.style.color = "#27ae60";
+            messageDisplay.innerText = "正解！";
+            inputField.style.backgroundColor = "#e8f5e9";
+            
+            updateHighScore();
+            setTimeout(nextQuestion, 400); // テンポよく0.4秒で次へ
+        } else {
+            messageDisplay.style.color = "#e74c3c";
+            messageDisplay.innerText = "違います！";
+            inputField.select();
+        }
+    }
+
+    function skipQuestion() {
+        if (timeLeft <= 0 || isSolved) return;
+        messageDisplay.style.color = "#95a5a6";
+        messageDisplay.innerText = "答えは「" + currentWord + "」でした";
+        setTimeout(nextQuestion, 800);
+    }
+
+    function updateHighScore() {
+        if (score > highScore) {
+            highScore = score;
+            highScoreDisplay.innerText = highScore;
+            localStorage.setItem("wordGameHighScore", highScore);
+        }
+    }
+
+    function endGame() {
+        clearInterval(timerId);
+        inputField.disabled = true;
+        checkBtn.disabled = true;
+        skipBtn.disabled = true;
+        document.getElementById("final-score").innerText = score;
+        gameOverOverlay.style.display = "flex";
+    }
+
+    inputField.addEventListener("keydown", function(event) {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            checkAnswer();
+        }
+    });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,429 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>3 hand Poker Spin</title>
+
+<style>
+body{
+  background:#008000;
+  color:white;
+  font-family:sans-serif;
+  text-align:center;
+  margin:0;
+  padding:0;
+  transition:background .5s;
+}
+
+h1{
+  margin:18px 0 10px;
+}
+
+#gameArea{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  width:1400px;
+  margin:0 auto;
+}
+
+.sideImage{
+  width:260px;
+  display:flex;
+  justify-content:center;
+}
+
+.sideImage img{
+  width:100%;
+  max-height:420px;
+  height:auto;
+  object-fit:contain;
+  border-radius:16px;
+  border:3px solid white;
+  background:#004400;
+  box-shadow:0 0 20px rgba(0,0,0,.6);
+}
+
+canvas{
+  display:block;
+  flex-shrink:0;
+  box-shadow:0 0 25px rgba(0,0,0,.7);
+}
+
+#bottomUI{
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  gap:18px;
+  font-size:20px;
+  margin-top:20px;
+}
+
+button{
+  font-size:18px;
+  padding:6px 14px;
+  cursor:pointer;
+}
+
+@media (max-width:1450px){
+  #gameArea{
+    width:100%;
+    justify-content:center;
+    gap:2px;
+  }
+}
+</style>
+</head>
+
+<body>
+
+<div id="header">
+  <img src="images/title.png" alt="3 hand jokers spin" width=65% height=70px;>
+</div>
+
+<div id="gameArea">
+  <div class="sideImage">
+    <img src="images/paytable.png" alt="Pay Table">
+  </div>
+
+  <canvas id="slot" width="900" height="480"></canvas>
+
+  <div class="sideImage">
+    <img src="images/tutorial.png" alt="Tutorial">
+  </div>
+</div>
+
+<div id="bottomUI">
+  <div>💰 CREDIT: <span id="credit">1000</span></div>
+  <div>🎰 BET: <span id="bet">1</span></div>
+  <div>🏆 WIN: <span id="win">0</span></div>
+  <button id="betUp">BET +</button>
+  <button id="rebet">REBET</button>
+  <button id="spin">SPIN</button>
+</div>
+
+<script>
+/* ===== 基本 ===== */
+const MAX_BET=10;
+let credit=100,bet=1,lastBet=1;
+let lastWin=0,freeSpinTotalWin=0;
+
+/* ===== カード ===== */
+const suits=["H","D","C","S"];
+const ranks=["A","K","Q","J","T","9","8","7","6","5","4","3","2"];
+
+/* ===== フリースピン ===== */
+let freeSpin=false;
+let freeSpinCount=0;
+let lockedJokers=[...Array(3)].map(()=>Array(5).fill(false));
+let justFinishedFreeSpin=false;
+
+function lotteryFreeSpin(){
+  const r=Math.random();
+  if(r<0.50) return 2;
+  if(r<0.85) return 3;
+  if(r<0.95) return 4;
+  return 5;
+}
+
+/* ===== 配当 ===== */
+const PAY={
+  NATURAL_ROYAL:{name:"NATURAL ROYAL FLUSH",pay:1000},
+  FIVE_JOKER:{name:"5JOKER",pay:300},
+  FIVE_ACE:{name:"5 ACE",pay:200},
+  FIVE_KIND:{name:"5 OF A KIND",pay:100},
+  ROYAL_FLUSH:{name:"ROYAL FLUSH",pay:50},
+  STRAIGHT_FLUSH:{name:"STRAIGHT FLUSH",pay:30},
+  FOUR_JOKER:{name:"4 JOKER",pay:10},
+  FOUR_ACE:{name:"4 ACE",pay:10},
+  FOUR_KIND:{name:"4 OF A KIND",pay:7},
+  FULL_HOUSE:{name:"FULL HOUSE",pay:5},
+  FLUSH:{name:"FLUSH",pay:3},
+  STRAIGHT:{name:"STRAIGHT",pay:2},
+  THREE_KIND:{name:"3 OF A KIND",pay:1}
+};
+
+/* ===== 画像 ===== */
+const cardImages={},imagePath="images/";
+function cardToImageName(c){
+  if(c==="JOKER")return"x01.gif";
+  const r=c[0],s=c[1];
+  const rs={A:"01",K:"13",Q:"12",J:"11",T:"10",
+  9:"09",8:"08",7:"07",6:"06",5:"05",4:"04",3:"03",2:"02"}[r];
+  return{H:"h",D:"d",C:"c",S:"s"}[s]+rs+".gif";
+}
+function loadImages(){
+  for(let s of suits)for(let r of ranks){
+    const c=r+s,i=new Image();
+    i.src=imagePath+cardToImageName(c);cardImages[c]=i;
+  }
+  ["JOKER","BACK"].forEach(c=>{
+    const i=new Image();
+    i.src=imagePath+(c==="BACK"?"z01.gif":"x01.gif");
+    cardImages[c]=i;
+  });
+}
+
+/* ===== デッキ ===== */
+let decks=[[],[],[]];
+function initDecks(){
+  for(let i=0;i<3;i++){
+    decks[i]=[];
+    for(let s of suits)for(let r of ranks)decks[i].push(r+s);
+    for(let j=0;j<5;j++)decks[i].push("JOKER");
+  }
+}
+function drawCard(line){
+  const d=decks[line];
+  return d.splice(Math.random()*d.length|0,1)[0];
+}
+
+/* ===== 盤面 ===== */
+const canvas=document.getElementById("slot");
+const ctx=canvas.getContext("2d");
+
+let board=[[],[],[]];
+let revealed=[...Array(3)].map(()=>Array(5).fill(false));
+let revealAnim=[...Array(3)].map(()=>Array(5).fill(0));
+let winInfo=[null,null,null];
+let spinning=false;
+
+/* ===== スピン ===== */
+function spin(){
+  if(spinning)return;
+  justFinishedFreeSpin=false;
+
+  lastWin=0;
+  winInfo=[null,null,null];
+
+  if(!freeSpin){
+    if(credit<bet)return;
+    credit-=bet;
+    lastBet=bet;
+  }
+
+  spinning=true;
+  initDecks();
+
+  for(let r=0;r<3;r++)for(let c=0;c<5;c++){
+    if(lockedJokers[r][c]){
+      board[r][c]="JOKER";
+      revealAnim[r][c]=1;
+      revealed[r][c]=true;
+    }else{
+      board[r][c]=drawCard(r);
+      revealAnim[r][c]=0;
+      revealed[r][c]=false;
+    }
+  }
+  revealSequential(0);
+}
+
+function revealSequential(i){
+  if(i>=15){
+    spinning=false;
+    evaluateAll();
+    draw();
+    return;
+  }
+  const r=i/5|0,c=i%5;
+
+  if(lockedJokers[r][c]){
+    revealSequential(i+1);
+    return;
+  }
+  animateReveal(r,c,()=>revealSequential(i+1));
+}
+
+function animateReveal(r,c,cb){
+  function step(){
+    revealAnim[r][c]+=0.09;
+    if(revealAnim[r][c]>=1){
+      revealAnim[r][c]=1;
+      revealed[r][c]=true;
+      cb();
+      return;
+    }
+    draw();
+    requestAnimationFrame(step);
+  }
+  step();
+}
+
+/* ===== 評価 ===== */
+function evaluateAll(){
+  let totalWin=0,jokerCount=0;
+
+  for(let r=0;r<3;r++){
+    board[r].forEach(c=>c==="JOKER"&&jokerCount++);
+    const res=evaluate(board[r]);
+    if(res){
+      const w=PAY[res].pay*bet;
+      totalWin+=w;
+      winInfo[r]={name:PAY[res].name,pay:w};
+    }
+  }
+
+  lastWin=totalWin;
+  credit+=totalWin;
+  if(freeSpin) freeSpinTotalWin+=totalWin;
+
+  if(jokerCount>=3 && !freeSpin){
+    freeSpin=true;
+    freeSpinCount=lotteryFreeSpin();
+    freeSpinTotalWin=0;
+    lockedJokers=board.map(row=>row.map(c=>c==="JOKER"));
+  }
+
+  if(freeSpin){
+    for(let r=0;r<3;r++)for(let c=0;c<5;c++){
+      if(board[r][c]==="JOKER"){
+        lockedJokers[r][c]=true;
+        revealAnim[r][c]=1;
+        revealed[r][c]=true;
+      }
+    }
+
+    freeSpinCount--;
+    if(freeSpinCount<=0){
+      freeSpin=false;
+      justFinishedFreeSpin=true;
+      lockedJokers=[...Array(3)].map(()=>Array(5).fill(false));
+    }else{
+      setTimeout(spin,1200);
+    }
+  }
+  updateUI();
+}
+
+function evaluate(hand){
+  const jokers = hand.filter(c => c === "JOKER").length;
+  const ranksOnly = hand.filter(c => c !== "JOKER").map(c => c[0]);
+
+  const cnt = {};
+  ranksOnly.forEach(r => cnt[r] = (cnt[r] || 0) + 1);
+  const counts = Object.values(cnt).sort((a,b)=>b-a);
+
+  const flush = hand.every(
+    c => c === "JOKER" || c[1] === hand.find(x=>x!=="JOKER")[1]
+  );
+
+  const ord = "23456789TJQKA";
+  const vals = [...new Set(ranksOnly.map(r => ord.indexOf(r)))].sort((a,b)=>a-b);
+
+  let straight = false;
+  for(let i=0;i<=8;i++){
+    let need = 0;
+    for(let j=0;j<5;j++) if(!vals.includes(i+j)) need++;
+    if(need <= jokers) straight = true;
+  }
+
+  if(jokers === 0 && straight && flush && ranksOnly.includes("A"))
+    return "NATURAL_ROYAL";
+  if(jokers === 5) return "FIVE_JOKER";
+  if((cnt["A"] || 0) >= 1 && (cnt["A"] || 0) + jokers === 5)
+    return "FIVE_ACE";
+  if(jokers <= 4 && counts[0] + jokers === 5) return "FIVE_KIND";
+  if(straight && flush && ranksOnly.includes("A")) return "ROYAL_FLUSH";
+  if(straight && flush) return "STRAIGHT_FLUSH";
+  if(jokers === 4) return "FOUR_JOKER";
+  if((cnt["A"] || 0) + jokers === 4) return "FOUR_ACE";
+  if(counts[0] + jokers === 4) return "FOUR_KIND";
+  if(counts[0] + jokers === 3 && counts[1] >= 2) return "FULL_HOUSE";
+  if(flush) return "FLUSH";
+  if(straight) return "STRAIGHT";
+  if(counts[0] + jokers === 3) return "THREE_KIND";
+  return null;
+}
+
+/* ===== 描画 ===== */
+const CARD_SIZE = 135;
+const COLS = 5, ROWS = 3;
+
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  const boardWidth  = CARD_SIZE * COLS;
+  const boardHeight = CARD_SIZE * ROWS;
+  const offsetX = (canvas.width - boardWidth) / 2;
+  const offsetY = 10; // 上に余白を確保
+
+  // カード描画
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    const t=revealAnim[r][c];
+    const scaleX=Math.abs(Math.cos(t*Math.PI));
+    const x = offsetX + c*CARD_SIZE;
+    const y = offsetY + r*CARD_SIZE;
+
+    ctx.save();
+    ctx.translate(x+CARD_SIZE/2,y+CARD_SIZE/2);
+    ctx.scale(scaleX,1);
+    ctx.translate(-CARD_SIZE/2,-CARD_SIZE/2);
+    const img=(t>0.5)?cardImages[board[r][c]]:cardImages["BACK"];
+    ctx.drawImage(img,0,0,CARD_SIZE,CARD_SIZE);
+    ctx.restore();
+
+    ctx.strokeStyle="white";
+    ctx.strokeRect(x,y,CARD_SIZE,CARD_SIZE);
+  }
+
+  // 役表示
+  for(let r=0;r<ROWS;r++){
+    if(!winInfo[r]) continue;
+
+    ctx.fillStyle="black";
+    ctx.globalAlpha=0.75;
+    ctx.fillRect(offsetX + boardWidth*0.25, offsetY + r*CARD_SIZE + 30, boardWidth*0.5, 60);
+    ctx.globalAlpha=1;
+
+    ctx.fillStyle="yellow";
+    ctx.font="bold 16px sans-serif";
+    ctx.textAlign="center";
+    ctx.fillText(winInfo[r].name, canvas.width/2, offsetY + r*CARD_SIZE + 50);
+
+    ctx.fillStyle="white";
+    ctx.font="16px sans-serif";
+    ctx.fillText("+"+winInfo[r].pay, canvas.width/2, offsetY + r*CARD_SIZE + 75);
+  }
+
+  // ステータス表示
+  ctx.font="bold 28px sans-serif";
+  ctx.textAlign="center";
+  ctx.textBaseline="middle";
+
+  const statusY = offsetY + boardHeight + 40;
+  const maxY = canvas.height - 20;
+  const finalY = Math.min(statusY, maxY);
+
+  if(freeSpin){
+    ctx.fillStyle="white";
+    ctx.fillText(`FREE SPIN ${freeSpinCount}`, canvas.width/2, finalY);
+  }else if(winInfo.some(v=>v)||justFinishedFreeSpin){
+    ctx.fillStyle="yellow";
+    ctx.fillText("WINNER", canvas.width/2, finalY);
+  }else if(!spinning){
+    ctx.fillStyle="white";
+    ctx.fillText("GAME OVER", canvas.width/2, finalY);
+  }
+}
+
+/* ===== UI ===== */
+function updateUI(){
+  document.getElementById("credit").textContent=credit;
+  document.getElementById("bet").textContent=bet;
+  document.getElementById("win").textContent=
+    freeSpin ? freeSpinTotalWin : lastWin;
+  document.body.style.background=freeSpin?"#800000":"#008000";
+}
+
+document.getElementById("spin").onclick=spin;
+document.getElementById("betUp").onclick=()=>!spinning&&!freeSpin&&(bet=bet<MAX_BET?bet+1:1,updateUI());
+document.getElementById("rebet").onclick=()=>!spinning&&!freeSpin&&(bet=lastBet,updateUI());
+
+loadImages();
+draw();
+updateUI();
+</script>
+</body>
+</html>

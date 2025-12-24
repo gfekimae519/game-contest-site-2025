@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>日常からの……</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: #000;
+      font-family: "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+    }
+
+    #game {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .background {
+      position: absolute;
+      inset: 0;
+      background-size: cover;
+      background-position: center;
+      transition: opacity 1s;
+    }
+
+    .character {
+      position: absolute;
+      bottom: 0;
+      width: 40%;
+      max-width: 400px;
+      transition: transform 0.8s, opacity 0.8s;
+    }
+
+    .left { left: 5%; }
+    .right { right: 5%; }
+
+    #textbox {
+      position: absolute;
+      left: 50%;
+      bottom: 0;
+      transform: translateX(-50%);
+      width: 100%;
+      height: 55vh;
+      background: rgba(0, 0, 0, 0.75);
+      color: #fff;
+      padding: 32px 48px;
+      box-sizing: border-box;
+      cursor: pointer;
+    }
+
+    #textbox::before {
+      content: "";
+      position: absolute;
+      inset: 24px;
+      border: 2px solid rgba(255,255,255,0.6);
+      border-radius: 16px;
+      pointer-events: none;
+    }
+
+    #text {
+      line-height: 1.9;
+      font-size: 1.25em;
+      word-break: break-word;
+    }
+
+    .hidden { opacity: 0; }
+
+    /* ふわふわ光の形状アニメーション */
+@keyframes magicGlow {
+  0%, 100% {
+    box-shadow: 
+      0 0 20px rgba(16, 185, 129, 0.6),
+      0 0 40px rgba(16, 185, 129, 0.4),
+      0 0 60px rgba(16, 185, 129, 0.2),
+      inset 0 0 20px rgba(255, 255, 255, 0.3);
+    filter: blur(0px);
+  }
+  50% {
+    box-shadow: 
+      0 0 30px rgba(16, 185, 129, 0.8),
+      0 0 60px rgba(16, 185, 129, 0.6),
+      0 0 90px rgba(16, 185, 129, 0.3),
+      inset 0 0 30px rgba(255, 255, 255, 0.5);
+    filter: blur(0.5px);
+  }
+}
+
+@keyframes morphShape {
+  0%, 100% {
+    border-radius: 60% 40% 70% 30% / 50% 60% 40% 50%;
+  }
+  25% {
+    border-radius: 40% 60% 50% 50% / 60% 40% 60% 40%;
+  }
+  50% {
+    border-radius: 50% 50% 40% 60% / 40% 50% 50% 60%;
+  }
+  75% {
+    border-radius: 60% 40% 60% 40% / 50% 50% 40% 60%;
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes sparkle {
+  0%, 100% {
+    opacity: 0;
+    transform: scale(0) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1) rotate(180deg);
+  }
+}
+
+/* リンクのスタイリング */
+#text a {
+  position: relative;
+  display: inline-block;
+  margin-top: 2em;
+  padding: 16px 40px;
+  background: linear-gradient(135deg, 
+    rgba(16, 185, 129, 0.9) 0%, 
+    rgba(5, 150, 105, 0.95) 50%, 
+    rgba(4, 120, 87, 0.9) 100%);
+  color: #fff;
+  text-decoration: none;
+  font-weight: bold;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  overflow: visible;
+  animation: 
+    magicGlow 3s ease-in-out infinite,
+    morphShape 8s ease-in-out infinite,
+    float 4s ease-in-out infinite;
+  z-index: 1;
+  backdrop-filter: blur(10px);
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+}
+
+/* キラキラエフェクト */
+#text a::before {
+  content: "✨";
+  position: absolute;
+  top: -10px;
+  right: 10%;
+  font-size: 20px;
+  animation: sparkle 2s ease-in-out infinite;
+}
+
+#text a::after {
+  content: "✨";
+  position: absolute;
+  bottom: -10px;
+  left: 15%;
+  font-size: 16px;
+  animation: sparkle 2.5s ease-in-out infinite 0.5s;
+}
+
+/* 追加のキラキラ */
+#text a:hover::before {
+  animation: sparkle 1s ease-in-out infinite;
+}
+
+#text a:hover::after {
+  animation: sparkle 1.2s ease-in-out infinite 0.3s;
+}
+
+#text a:hover {
+  background: linear-gradient(135deg, 
+    rgba(5, 150, 105, 0.95) 0%, 
+    rgba(4, 120, 87, 0.95) 50%, 
+    rgba(16, 185, 129, 0.9) 100%);
+  animation: 
+    magicGlow 1.5s ease-in-out infinite,
+    morphShape 4s ease-in-out infinite,
+    float 2s ease-in-out infinite;
+  transform: translateY(-5px);
+}
+
+#text a:active {
+  transform: scale(0.95) translateY(-3px);
+}
+  </style>
+</head>
+<body>
+  <div id="game">
+    <audio id="bgm" loop></audio>
+    <div id="bg" class="background"></div>
+    <img id="charLeft" class="character left hidden" />
+    <img id="charRight" class="character right hidden" />
+
+    <div id="textbox">
+      <div id="text"></div>
+    </div>
+  </div>
+
+  <script>
+    const scenario = [
+      {
+        type: "bgm",
+        src: "Do_not_open_it/bgm/bgm1_or.mp3"
+      },
+      {
+        type: "bg",
+        image: "Do_not_open_it/img/bg1.webp"
+      },
+
+      {
+        type: "char",
+        position: "right",
+        image: "Do_not_open_it/img/ele.png"
+      },
+      {
+        type: "text",
+        text: "日差しが頭上から照らすお昼時、五月女架純（さおとめかすみ）は、芝生の上に寝転がって、どこまでも広がる青空をみながらボーッとしていた。<br>「シャカイジンになるにはまだまだだなぁ」<br>「シャカイ」で活躍する魔法使い、「シャカイジン」に憧れる架純は空をみながらそうつぶやいた。<br>「架純、何をしているんですか？」<br>"
+      },
+     {
+        type: "text",
+        text: "その声のする方向を向くと、茶髪のロングヘアーの大人びた女性型の小さな妖精、エメラルドがいた。<br>「びっくりしたぁ……。今は、空を眺めてボーッとしていたところだよ」<br>メインがそう答える。<br>「そうですか……まあ、そういう時間も大切ですね……」<br>"
+      },
+
+     {
+        type: "text",
+        text: "エメラルドはそう言った。<br>そんなことを話していると、<br>「架純、大変です！あちらのオフィス街でエンプロイが大量に現れたみたいです！」<br>エメラルドは、架純にエンプロイ——正式名称エンプロイメントの発生を伝えた。<br>"
+      },
+
+     {
+        type: "text",
+        text: "「うーん……せっかく今からお昼寝をしようとしていたのに……」<br>「まあ、これも立派なシャカイジンになるための修行だと思って頑張りましょう……」<br>「それもそうだね。よし、行こうかエメラルド！」<br>「はい！」<br>"
+      },
+
+     {
+        type: "text",
+        text: "そう言うと架純とエメラルドはエンプロイの発生現場であるオフィス街へと向かった。"
+      },
+
+     {
+        type: "text",
+        text: "…………"
+      },
+
+      {
+        type: "bg",
+        image: "Do_not_open_it/img/bg2.webp"
+      },
+
+     {
+        type: "text",
+        text: "「キャー！エンプロイがたくさんのギョウムを持ってきたわ！誰か手伝って！」<br>人通りの多いオフィス街の一角にあるオフィスから、女性の叫び声を架純とエメラルドは聞いた。<br>「アサインだよ、架純！」<br>「うん！」<br>"
+      },
+
+      {
+        type: "text",
+        text: "エメラルドの呼びかけに架純はそう答えた。<br>「アサイン！！」<br>そう言うと、架純が虹色の光に包まれていった。虹色の光の内側で架純の髪が茶髪から黄緑に、頭部の両側面にはハート型の装飾が、トップスはオフィスカジュアルなものに、ボトムスは若干ふわふわしたスカートに変化していき、光の中から緑髪の少女が現れた。<br>「書類舞うオフィスに舞う一吹きの風！魔法少女メイン！」<br>"
+      },
+      
+     {
+        type: "char",
+        position: "left",
+        image: "Do_not_open_it/img/mein.png"
+      },
+
+      {
+        type: "text",
+        text: "それは架純改め、魔法少女メインだった。<br>「そのギョウム、私が手伝います！」<br>「あ、ありがとうございます！」<br>先程悲鳴を上げた女性はメインに感謝の言葉を伝えた。<br>"
+      },
+
+      {
+        type: "text",
+        text: "「早速取り掛かりましょう！」<br>そう言うとメインはオフィスにあったデスクに腰掛けて、パソコンを起動した。<br>"
+      },
+
+      {
+        type: "text",
+        text: "<a href='Do_not_open_it/game.html'>仕事に取り掛かる</a>"
+      },
+    ];
+
+/*
+      {
+        type: "text",
+        text: ""
+      },
+*/
+
+    let index = 0;
+    let hasInteracted = false;
+
+    const bg = document.getElementById("bg");
+    const bgm = document.getElementById("bgm");
+    const charLeft = document.getElementById("charLeft");
+    const charRight = document.getElementById("charRight");
+    const textBox = document.getElementById("text");
+    const textbox = document.getElementById("textbox");
+
+    function next() {
+      // 最初のクリックでフラグを立てる
+      if (!hasInteracted) {
+        hasInteracted = true;
+      }
+
+      if (index >= scenario.length) return;
+
+      const step = scenario[index];
+      index++;
+
+      if (step.type === "bgm") {
+        if (step.src === null) {
+          bgm.pause();
+          bgm.currentTime = 0;
+          return;
+        }
+
+        // src は絶対URLに変換されるため、datasetで比較する
+        if (bgm.dataset.src !== step.src) {
+          bgm.pause();
+          bgm.src = step.src;
+          bgm.dataset.src = step.src;
+          bgm.currentTime = 0;
+        }
+        bgm.volume = step.volume ?? 0.5;
+        bgm.play().catch((err) => {
+          console.log("BGM再生エラー:", err);
+        });
+      }
+
+      if (step.type === "bg") {
+        bg.classList.add("hidden");
+        setTimeout(() => {
+          bg.style.backgroundImage = `url(${step.image})`;
+          bg.classList.remove("hidden");
+        }, 500);
+      }
+
+      if (step.type === "char") {
+        const target = step.position === "left" ? charLeft : charRight;
+        target.src = step.image;
+        target.classList.remove("hidden");
+        target.style.transform = "translateY(0)";
+      }
+
+      if (step.type === "text") {
+        textBox.innerHTML = step.text;
+      }
+    }
+
+    textbox.addEventListener("click", next);
+
+    // 初回はクリックで開始（自動再生ブロック回避）
+    // next(); ← この行をコメントアウト（クリックしてから開始）
+  </script>
+</body>
+</html>

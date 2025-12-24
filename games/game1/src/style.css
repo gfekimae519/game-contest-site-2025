@@ -1,0 +1,52 @@
+ *{
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+ }
+ 
+ /* CSSで顔の土台を定義 */
+        #fukuwarai-face {
+            width: 700px;
+            height: 700px;
+            border: 3px solid #333;
+            border-radius: 50%; /* 丸い顔に */
+            background-color: #ffe0b2; /* 肌色 */
+            position: relative; /* 子要素（パーツ）をabsoluteで配置するための基準 */
+            overflow: visible; /*アナログのふくわらいに合わせてパーツをはみ出させる */
+        }
+
+        .fukuwarai{
+            display: flex;
+            gap: 10%;
+            max-width: 1024px;
+            margin: 1vh auto 0 auto;
+        }
+
+        /* パーツ画像のスタイル */
+        #fukuwarai-face img {
+            max-width: 100%;
+            height: auto;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            justify-content: center;
+            gap: 10%;
+        }
+
+        .controls button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+
+            border: none;
+            background-color: #add8e6;
+            box-shadow: 0 4px 0 #0000ff;
+        }
+
+        .controls button:active{
+            box-shadow: none;
+            transform: translateY(4px);
+        }

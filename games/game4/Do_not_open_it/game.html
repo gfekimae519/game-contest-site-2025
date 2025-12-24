@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>エンプロイからのギョウム</title>
+
+  <script>
+    const targetImage = 'img/emp.png';
+    const bgmFile = 'bgm/bgm_game.mp3'; // BGMファイルのパス
+    const clickSoundFile = 'bgm/effect.mp3'; // クリック効果音のパス
+  </script>
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: #000;
+      font-family: "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+      color: #fff;
+    }
+
+    /* 背景 */
+    @keyframes windFlow {
+      0%, 100% {
+        background-position: 0% 50%;
+      }
+      50% {
+        background-position: 100% 50%;
+      }
+    }
+
+    @keyframes floatingLeaf {
+      0% {
+        transform: translateY(100vh) translateX(0) rotate(0deg);
+        opacity: 0;
+      }
+      10% {
+        opacity: 0.9;
+      }
+      90% {
+        opacity: 0.9;
+      }
+      100% {
+        transform: translateY(-100px) translateX(200px) rotate(720deg);
+        opacity: 0;
+      }
+    }
+
+    @keyframes floatingLeaf2 {
+      0% {
+        transform: translateY(100vh) translateX(0) rotate(0deg);
+        opacity: 0;
+      }
+      10% {
+        opacity: 0.8;
+      }
+      90% {
+        opacity: 0.8;
+      }
+      100% {
+        transform: translateY(-100px) translateX(-150px) rotate(-720deg);
+        opacity: 0;
+      }
+    }
+
+    @keyframes floatingLeaf3 {
+      0% {
+        transform: translateY(100vh) translateX(0) rotate(0deg) scale(0.8);
+        opacity: 0;
+      }
+      10% {
+        opacity: 0.7;
+      }
+      90% {
+        opacity: 0.7;
+      }
+      100% {
+        transform: translateY(-100px) translateX(100px) rotate(360deg) scale(1.2);
+        opacity: 0;
+      }
+    }
+
+    @keyframes sparkleBackground {
+      0%, 100% {
+        opacity: 0;
+      }
+      50% {
+        opacity: 1;
+      }
+    }
+
+    .background {
+      position: fixed;
+      inset: 0;
+      background: linear-gradient(135deg, 
+        #001a0d 0%, 
+        #003d1f 25%, 
+        #005a2b 50%, 
+        #003d1f 75%, 
+        #001a0d 100%);
+      background-size: 400% 400%;
+      animation: windFlow 12s ease-in-out infinite;
+    }
+
+    .background::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image: 
+        radial-gradient(circle at 20% 30%, rgba(16, 185, 129, 0.15) 0%, transparent 50%),
+        radial-gradient(circle at 80% 70%, rgba(5, 150, 105, 0.15) 0%, transparent 50%),
+        radial-gradient(circle at 50% 50%, rgba(4, 120, 87, 0.1) 0%, transparent 60%);
+      animation: windFlow 15s ease-in-out infinite reverse;
+    }
+
+    .background::after {
+      content: "🍃 🍃 🍃 🍃 🍃";
+      position: absolute;
+      font-size: 30px;
+      width: 100%;
+      word-spacing: 15vw;
+      left: -10%;
+      animation: floatingLeaf 10s linear infinite;
+    }
+
+    .leaf-layer {
+      content: "🍃 🍃 🍃 🍃";
+      position: absolute;
+      font-size: 25px;
+      width: 100%;
+      word-spacing: 18vw;
+      left: 20%;
+      animation: floatingLeaf3 14s linear infinite 4s;
+    }
+
+    /* タイトル枠 */
+    .title-frame {
+      position: absolute;
+      left: 50%;
+      top: 32px;
+      transform: translateX(-50%);
+      width: min(70vw, 70vh);
+      background: rgba(0, 0, 0, 0.75);
+      box-sizing: border-box;
+      padding: 20px 28px;
+    }
+
+    .title-frame::before {
+      content: "";
+      position: absolute;
+      inset: 12px;
+      border: 2px solid rgba(255,255,255,0.6);
+      border-radius: 12px;
+      pointer-events: none;
+    }
+
+    .title-frame h1 {
+      margin: 0 0 8px 0;
+      font-size: 1.4em;
+      font-weight: normal;
+      text-align: center;
+    }
+
+    .title-frame p {
+      margin: 0;
+      font-size: 1em;
+      text-align: center;
+      line-height: 1.6;
+    }
+
+    /* 下部フレーム（キネマティックノベル準拠） */
+    .frame {
+      position: absolute;
+      left: 50%;
+      bottom: 32px;
+      transform: translateX(-50%);
+      width: min(70vw, 70vh);
+      height: min(55vh, 55vw);
+      background: rgba(0, 0, 0, 0.75);
+      box-sizing: border-box;
+      padding: 24px 28px;
+    }
+
+    .frame::before {
+      content: "";
+      position: absolute;
+      inset: 12px;
+      border: 2px solid rgba(255,255,255,0.6);
+      border-radius: 12px;
+      pointer-events: none;
+    }
+
+    .content {
+      position: relative;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .info {
+      display: flex;
+      gap: 24px;
+      font-size: 1.1em;
+    }
+
+    .game-area {
+      position: relative;
+      flex: 1;
+      border: 1px solid rgba(255,255,255,0.4);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .target {
+      width: 60px;
+      height: 60px;
+      position: absolute;
+      cursor: pointer;
+    }
+
+    .target img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 6px;
+    }
+
+    /* 魔法少女風ボタンアニメーション */
+    @keyframes magicGlow {
+      0%, 100% {
+        box-shadow: 
+          0 0 20px rgba(16, 185, 129, 0.6),
+          0 0 40px rgba(16, 185, 129, 0.4),
+          0 0 60px rgba(16, 185, 129, 0.2),
+          inset 0 0 20px rgba(255, 255, 255, 0.3);
+        filter: blur(0px);
+      }
+      50% {
+        box-shadow: 
+          0 0 30px rgba(16, 185, 129, 0.8),
+          0 0 60px rgba(16, 185, 129, 0.6),
+          0 0 90px rgba(16, 185, 129, 0.3),
+          inset 0 0 30px rgba(255, 255, 255, 0.5);
+        filter: blur(0.5px);
+      }
+    }
+
+    @keyframes morphShape {
+      0%, 100% {
+        border-radius: 60% 40% 70% 30% / 50% 60% 40% 50%;
+      }
+      25% {
+        border-radius: 40% 60% 50% 50% / 60% 40% 60% 40%;
+      }
+      50% {
+        border-radius: 50% 50% 40% 60% / 40% 50% 50% 60%;
+      }
+      75% {
+        border-radius: 60% 40% 60% 40% / 50% 50% 40% 60%;
+      }
+    }
+
+    @keyframes float {
+      0%, 100% {
+        transform: translateY(0px);
+      }
+      50% {
+        transform: translateY(-8px);
+      }
+    }
+
+    @keyframes sparkle {
+      0%, 100% {
+        opacity: 0;
+        transform: scale(0) rotate(0deg);
+      }
+      50% {
+        opacity: 1;
+        transform: scale(1) rotate(180deg);
+      }
+    }
+
+    button {
+      position: relative;
+      padding: 8px 16px;
+      background: linear-gradient(135deg, 
+        rgba(16, 185, 129, 0.9) 0%, 
+        rgba(5, 150, 105, 0.95) 50%, 
+        rgba(4, 120, 87, 0.9) 100%);
+      color: #fff;
+      border: 2px solid rgba(255, 255, 255, 0.5);
+      cursor: pointer;
+      font-size: 0.95em;
+      overflow: visible;
+      animation: 
+        magicGlow 3s ease-in-out infinite,
+        morphShape 8s ease-in-out infinite,
+        float 4s ease-in-out infinite;
+      backdrop-filter: blur(10px);
+      text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+      margin-right: 8px;
+    }
+
+    button::before {
+      content: "✨";
+      position: absolute;
+      top: -10px;
+      right: 10%;
+      font-size: 16px;
+      animation: sparkle 2s ease-in-out infinite;
+    }
+
+    button::after {
+      content: "✨";
+      position: absolute;
+      bottom: -10px;
+      left: 15%;
+      font-size: 14px;
+      animation: sparkle 2.5s ease-in-out infinite 0.5s;
+    }
+
+    button:hover {
+      background: linear-gradient(135deg, 
+        rgba(5, 150, 105, 0.95) 0%, 
+        rgba(4, 120, 87, 0.95) 50%, 
+        rgba(16, 185, 129, 0.9) 100%);
+      animation: 
+        magicGlow 1.5s ease-in-out infinite,
+        morphShape 4s ease-in-out infinite,
+        float 2s ease-in-out infinite;
+      transform: translateY(-5px);
+    }
+
+    button:hover::before {
+      animation: sparkle 1s ease-in-out infinite;
+    }
+
+    button:hover::after {
+      animation: sparkle 1.2s ease-in-out infinite 0.3s;
+    }
+
+    button:active {
+      transform: scale(0.95) translateY(-3px);
+    }
+
+    button:disabled {
+      opacity: 0.4;
+      cursor: default;
+      animation: none;
+    }
+
+    button:disabled::before,
+    button:disabled::after {
+      display: none;
+    }
+
+    .game-over {
+      display: none;
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      padding: 20px;
+      box-sizing: border-box;
+      overflow-y: auto;
+    }
+
+    .game-over h2 {
+      margin: 0 0 8px 0;
+      font-weight: normal;
+      font-size: 1.3em;
+    }
+
+    .game-over p {
+      margin: 8px 0;
+      font-size: 1em;
+    }
+
+    .game-over #message {
+      margin-top: 8px;
+      line-height: 1.6;
+    }
+
+    .game-over a {
+      position: relative;
+      display: inline-block;
+      margin-top: 0.5em;
+      padding: 8px 20px;
+      background: linear-gradient(135deg, 
+        rgba(16, 185, 129, 0.9) 0%, 
+        rgba(5, 150, 105, 0.95) 50%, 
+        rgba(4, 120, 87, 0.9) 100%);
+      color: #fff;
+      text-decoration: none;
+      border: 2px solid rgba(255, 255, 255, 0.5);
+      overflow: visible;
+      animation: 
+        magicGlow 3s ease-in-out infinite,
+        morphShape 8s ease-in-out infinite,
+        float 4s ease-in-out infinite;
+      backdrop-filter: blur(10px);
+      text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+      font-size: 0.95em;
+    }
+
+    .game-over a::before {
+      content: "✨";
+      position: absolute;
+      top: -10px;
+      right: 10%;
+      font-size: 16px;
+      animation: sparkle 2s ease-in-out infinite;
+    }
+
+    .game-over a::after {
+      content: "✨";
+      position: absolute;
+      bottom: -10px;
+      left: 15%;
+      font-size: 14px;
+      animation: sparkle 2.5s ease-in-out infinite 0.5s;
+    }
+
+    .game-over a:hover {
+      background: linear-gradient(135deg, 
+        rgba(5, 150, 105, 0.95) 0%, 
+        rgba(4, 120, 87, 0.95) 50%, 
+        rgba(16, 185, 129, 0.9) 100%);
+      animation: 
+        magicGlow 1.5s ease-in-out infinite,
+        morphShape 4s ease-in-out infinite,
+        float 2s ease-in-out infinite;
+      transform: translateY(-5px);
+    }
+
+    .game-over a:hover::before {
+      animation: sparkle 1s ease-in-out infinite;
+    }
+
+    .game-over a:hover::after {
+      animation: sparkle 1.2s ease-in-out infinite 0.3s;
+    }
+  </style>
+</head>
+<body>
+  <div class="background">
+    <div class="leaf-layer"></div>
+  </div>
+
+  <!-- タイトル枠 -->
+  <div class="title-frame">
+    <h1>エンプロイからのギョウム<br>をこなそう!</h1>
+    <p>ランダムに現れる<br>エンプロイをクリック!</p>
+  </div>
+
+  <!-- 音声要素 -->
+  <audio id="bgm" loop></audio>
+  <audio id="clickSound"></audio>
+
+  <!-- ゲーム枠 -->
+  <div class="frame">
+    <div class="content">
+      <div class="info">
+        <div>スコア: <span id="score">0</span></div>
+        <div>残り時間: <span id="time">30</span>秒</div>
+      </div>
+
+      <div class="game-area" id="gameArea">
+        <div class="game-over" id="gameOver">
+          <h2>ゲーム終了</h2>
+          <p>最終スコア: <span id="finalScore">0</span></p>
+          <div id="message"></div>
+        </div>
+      </div>
+
+      <div>
+        <button id="startBtn" onclick="startGame()">開始</button>
+        <button onclick="resetGame()">リセット</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let score = 0;
+    let timeLeft = 30;
+    let gameActive = false;
+    let gameTimer;
+    let targetTimer;
+
+    const bgm = document.getElementById('bgm');
+    const clickSound = document.getElementById('clickSound');
+
+    // BGMと効果音の初期化
+    bgm.src = bgmFile;
+    bgm.volume = 0.3; // BGMの音量（0.0〜1.0）
+    clickSound.src = clickSoundFile;
+    clickSound.volume = 0.5; // 効果音の音量（0.0〜1.0）
+
+    function getScoreMessage(finalScore) {
+      if (finalScore < 10) {
+        return "まだまだあるみたい……<br><a href='game.html'>もう一度働く</a>";
+      } else if (finalScore < 15) {
+        return "あと、もう少しだったね……<br><a href='game.html'>もう一度働く</a>";
+      } else {
+        return "ふう……これで終了かな……<br><a href='task.html'>次に進む</a>";
+      }
+    }
+
+    function startGame() {
+      score = 0;
+      timeLeft = 30;
+      gameActive = true;
+      document.getElementById('score').textContent = 0;
+      document.getElementById('time').textContent = 30;
+      document.getElementById('gameOver').style.display = 'none';
+      document.getElementById('startBtn').disabled = true;
+
+      // BGM再生
+      bgm.currentTime = 0;
+      bgm.play().catch(err => console.log('BGM再生エラー:', err));
+
+      gameTimer = setInterval(() => {
+        timeLeft--;
+        document.getElementById('time').textContent = timeLeft;
+        if (timeLeft <= 0) endGame();
+      }, 1000);
+
+      showTarget();
+    }
+
+    function showTarget() {
+      if (!gameActive) return;
+
+      const old = document.querySelector('.target');
+      if (old) old.remove();
+
+      const target = document.createElement('div');
+      target.className = 'target';
+      const img = document.createElement('img');
+      img.src = targetImage;
+      target.appendChild(img);
+
+      const area = document.getElementById('gameArea');
+      const maxX = area.clientWidth - 60;
+      const maxY = area.clientHeight - 60;
+      target.style.left = Math.random() * maxX + 'px';
+      target.style.top = Math.random() * maxY + 'px';
+
+      target.onclick = (e) => {
+        e.stopPropagation();
+        score++;
+        document.getElementById('score').textContent = score;
+        
+        // クリック効果音を再生
+        clickSound.currentTime = 0;
+        clickSound.play().catch(err => console.log('効果音再生エラー:', err));
+        
+        showTarget();
+      };
+
+      area.appendChild(target);
+
+      clearTimeout(targetTimer);
+      targetTimer = setTimeout(showTarget, Math.max(500, 1500 - score * 20));
+    }
+
+    function endGame() {
+      gameActive = false;
+      clearInterval(gameTimer);
+      clearTimeout(targetTimer);
+
+      // BGM停止
+      bgm.pause();
+
+      const t = document.querySelector('.target');
+      if (t) t.remove();
+
+      document.getElementById('finalScore').textContent = score;
+      document.getElementById('message').innerHTML = getScoreMessage(score);
+      document.getElementById('gameOver').style.display = 'block';
+      document.getElementById('startBtn').disabled = false;
+    }
+
+    function resetGame() {
+      if (gameActive) endGame();
+      score = 0;
+      timeLeft = 30;
+      document.getElementById('score').textContent = 0;
+      document.getElementById('time').textContent = 30;
+      document.getElementById('gameOver').style.display = 'none';
+      document.getElementById('startBtn').disabled = false;
+      
+      // BGM停止
+      bgm.pause();
+      bgm.currentTime = 0;
+    }
+  </script>
+</body>
+</html>

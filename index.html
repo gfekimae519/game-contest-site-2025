@@ -63,25 +63,86 @@
 <body>
     <div class="vote-section">
         <p>投票はこちらから（1人1票まで）</p>
-        <a href="https://docs.google.com/forms/d/e/1FAIpQLSdGMstjD067sWJ-Pg379LYWuiJvo_fo7urdXoEiEusgTM0qNg/viewform?usp=header">投票フォーム</a>
+        <a
+            href="https://docs.google.com/forms/d/e/1FAIpQLSdGMstjD067sWJ-Pg379LYWuiJvo_fo7urdXoEiEusgTM0qNg/viewform?usp=header">投票フォーム</a>
     </div>
 
     <div class="games-section">
-        <a class="card" href="./games/demo1/sample-shooting.html">
-            <img class="thumb" src="images/demo1-thumb.png" alt="">
-            <span>サンプルシューティング</span>
+        <a class="card" href="games/game1/src/index.html">
+            <img class="thumb" src="images/game1-thumb.png" alt="">
+            <span>ふくわらい</span>
         </a>
 
-        <a class="card" href="./games/demo2/sample-flappybird.html">
-            <img class="thumb" src="images/demo2-thumb.png" alt="">
-            <span>サンプルフラッピーバード</span>
+        <a class="card" href="games/game2/sample-shooting.html">
+            <img class="thumb" src="images/game2-thumb.png" alt="">
+            <span>シューティング</span>
         </a>
 
-        <a class="card" href="./games/demo3/sample-breakout.html">
-            <img class="thumb" src="images/demo3-thumb.png" alt="">
-            <span>サンプルブロック崩し</span>
+        <a class="card" href="games/game3/普通のブロック崩し.html">
+            <img class="thumb" src="images/game3-thumb.png" alt="">
+            <span>普通のブロック崩し</span>
+        </a>
+
+        <a class="card" href="games/game4/start.html">
+            <img class="thumb" src="images/game4-thumb.png" alt="">
+            <span>魔法少女メイン</span>
+        </a>
+
+        <a class="card" href="games/game5/randumwords.html">
+            <img class="thumb" src="images/game5-thumb.png" alt="">
+            <span>ポケモン151匹わかるかな？</span>
+        </a>
+
+        <a class="card" href="games/game6/3hand_jokers_spin.html">
+            <img class="thumb" src="images/game6-thumb.png" alt="">
+            <span>Three Hand Joker's Spin</span>
+        </a>
+
+        <a class="card" href="games/game7/index.html">
+            <img class="thumb" src="images/game7-thumb.png" alt="">
+            <span>CROSS RUSH</span>
+        </a>
+
+        <a class="card" href="games/game8/christmas-shooting.html">
+            <img class="thumb" src="images/game8-thumb.png" alt="">
+            <span>クリスマスシューティング</span>
+        </a>
+
+        <a class="card" href="games/game9/novel.html">
+            <img class="thumb" src="images/game9-thumb.png" alt="">
+            <span>春紫苑の卒業式</span>
+        </a>
+
+        <a class="card" href="games/game10/game.html">
+            <img class="thumb" src="images/game10-thumb.png" alt="">
+            <span>星当てゲーム</span>
+        </a>
+
+        <a class="card" href="games/game11/OriginalGame.html">
+            <img class="thumb" src="images/game11-thumb.png" alt="">
+            <span>ピースはめパズル</span>
+        </a>
+
+        <a class="card" href="games/game12/index.html">
+            <img class="thumb" src="images/game12-thumb.png" alt="">
+            <span>プレゼント防衛ゲーム</span>
         </a>
     </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const container = document.querySelector('.games-section');
+            const cards = Array.from(container.children);
+
+            // Fisher–Yates シャッフル
+            for (let i = cards.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [cards[i], cards[j]] = [cards[j], cards[i]];
+            }
+
+            // 並び替えた順で再配置
+            cards.forEach(card => container.appendChild(card));
+        });
+    </script>
 </body>
 
 </html>

@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>「思考・姿勢・考え方」]</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: #000;
+      font-family: "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+      color: #fff;
+    }
+
+    /* 背景 */
+    .background {
+      position: fixed;
+      inset: 0;
+      background-image: url("img/keywordimg.webp");
+      background-size: cover;
+      background-position: center;
+      filter: brightness(0.6);
+    }
+
+    /* スタート画面オーバーレイ */
+    .start-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.9);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+
+    .start-button {
+      padding: 20px 60px;
+      font-size: 1.5em;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 50px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    }
+
+    .start-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+    }
+
+    /* セリフ枠 */
+    .frame {
+      position: absolute;
+      left: 50%;
+      bottom: 0;
+      transform: translateX(-50%);
+      width: 100%;
+      height: 55vh;
+      background: rgba(0, 0, 0, 0.75);
+      box-sizing: border-box;
+      padding: 32px 48px;
+    }
+
+    .frame::before {
+      content: "";
+      position: absolute;
+      inset: 16px;
+      border: 2px solid rgba(255,255,255,0.6);
+      border-radius: 12px;
+      pointer-events: none;
+    }
+
+    .content {
+      position: relative;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .text {
+      line-height: 1.9;
+      font-size: 1.2em;
+    }
+
+    .inputs {
+      display: flex;
+      gap: 12px;
+    }
+
+    .inputs input {
+      flex: 1;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.4);
+      border-radius: 6px;
+      padding: 10px;
+      color: #fff;
+      font-size: 1em;
+    }
+
+    .inputs input::placeholder {
+      color: rgba(255,255,255,0.5);
+    }
+
+    .result {
+      margin-top: auto;
+      font-size: 1.1em;
+    }
+
+    .result a {
+      color: #9fe870;
+      text-decoration: none;
+      border-bottom: 1px solid #9fe870;
+    }
+
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <!-- スタート画面 -->
+  <div id="startOverlay" class="start-overlay">
+    <button id="startButton" class="start-button">スタート</button>
+  </div>
+
+  <audio id="bgm" src="bgm/bgm3.mp3" loop></audio>
+  <div class="background"></div>
+
+  <div class="frame">
+    <div class="content">
+      <div class="text">
+        メインに「思考・姿勢・考え方」をおしえてもらえますか?<br>
+        1つ目のキーワード:<strong>ア◯◯ー◯◯◯◯◯ト</strong><br>
+        2つ目のキーワード:<strong>リ◯◯ー◯◯グ</strong><br>
+        3つ目のキーワード:<strong>コ◯◯◯ー◯◯◯ー◯ス</strong>
+      </div>
+
+      <div class="inputs">
+        <input type="text" id="key1" placeholder="キーワード1" />
+        <input type="text" id="key2" placeholder="キーワード2" />
+        <input type="text" id="key3" placeholder="キーワード3" />
+      </div>
+
+      <div id="result" class="result hidden">
+        ▶ <a href="ending.html">あなたのおかげでメインが立ち上がりました!(次へ進む)</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 正解キーワード
+    const answer = ["アンガーマネジメント", "リフレーミング", "コントロールフォーカス"];
+
+    const inputs = [
+      document.getElementById("key1"),
+      document.getElementById("key2"),
+      document.getElementById("key3")
+    ];
+
+    const result = document.getElementById("result");
+    const bgm = document.getElementById("bgm");
+    const startOverlay = document.getElementById("startOverlay");
+    const startButton = document.getElementById("startButton");
+
+    // スタートボタンクリックで音楽再生開始
+    startButton.addEventListener("click", () => {
+      bgm.play().then(() => {
+        startOverlay.classList.add("hidden");
+      }).catch(err => {
+        console.error("音声再生エラー:", err);
+        startOverlay.classList.add("hidden");
+      });
+    });
+
+    function checkKeywords() {
+      const values = inputs.map(input => input.value.trim());
+      const isCorrect = values.every((v, i) => v === answer[i]);
+
+      if (isCorrect) {
+        result.classList.remove("hidden");
+      } else {
+        result.classList.add("hidden");
+      }
+    }
+
+    inputs.forEach(input => {
+      input.addEventListener("input", checkKeywords);
+    });
+  </script>
+</body>
+</html>

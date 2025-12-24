@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>シンプルなHTMLゲーム</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* キャンバスを中央に配置するなどの基本スタイル */
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+
+        canvas {
+            border: 1px solid black;
+            background-color: white;
+        }
+
+        .pdf-overlay {
+            position: fixed;
+            right: 16px;
+            bottom: 16px;
+            z-index: 1000;
+
+            padding: 8px 12px;
+            background: rgba(0, 0, 0, 0.7);
+            color: #fff;
+            text-decoration: none;
+            font-size: 14px;
+            border-radius: 8px;
+
+            transition: opacity 0.2s, transform 0.2s;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="gameCanvas" width="700" height="1200"></canvas>
+    <a href="ゲームの遊び方.pdf" target="_blank" class="pdf-overlay">
+        ルール説明を読む
+    </a>
+    <!--<script type="module" src="game.js"></script>-->
+    <script src="Button.js"></script>
+    <script src="field.js"></script>
+    <script src="piece.js"></script>
+    <script src="ShopScene.js"></script>
+    <script src="ResultScene.js"></script>
+    <script src="game.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>エピローグ</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: #000;
+      font-family: "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+    }
+
+    #game {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .background {
+      position: absolute;
+      inset: 0;
+      background-size: cover;
+      background-position: center;
+      transition: opacity 1s;
+    }
+
+    .character {
+      position: absolute;
+      bottom: 0;
+      width: 40%;
+      max-width: 400px;
+      transition: transform 0.8s, opacity 0.8s;
+    }
+
+    .left { left: 5%; }
+    .right { right: 5%; }
+
+    #textbox {
+      position: absolute;
+      left: 50%;
+      bottom: 0;
+      transform: translateX(-50%);
+      width: 100%;
+      height: 55vh;
+      background: rgba(0, 0, 0, 0.75);
+      color: #fff;
+      padding: 32px 48px;
+      box-sizing: border-box;
+      cursor: pointer;
+    }
+
+    #textbox::before {
+      content: "";
+      position: absolute;
+      inset: 24px;
+      border: 2px solid rgba(255,255,255,0.6);
+      border-radius: 16px;
+      pointer-events: none;
+    }
+
+    #text {
+      line-height: 1.9;
+      font-size: 1.25em;
+      word-break: break-word;
+    }
+
+    .hidden { opacity: 0; }
+
+    /* ふわふわ光の形状アニメーション */
+@keyframes magicGlow {
+  0%, 100% {
+    box-shadow: 
+      0 0 20px rgba(16, 185, 129, 0.6),
+      0 0 40px rgba(16, 185, 129, 0.4),
+      0 0 60px rgba(16, 185, 129, 0.2),
+      inset 0 0 20px rgba(255, 255, 255, 0.3);
+    filter: blur(0px);
+  }
+  50% {
+    box-shadow: 
+      0 0 30px rgba(16, 185, 129, 0.8),
+      0 0 60px rgba(16, 185, 129, 0.6),
+      0 0 90px rgba(16, 185, 129, 0.3),
+      inset 0 0 30px rgba(255, 255, 255, 0.5);
+    filter: blur(0.5px);
+  }
+}
+
+@keyframes morphShape {
+  0%, 100% {
+    border-radius: 60% 40% 70% 30% / 50% 60% 40% 50%;
+  }
+  25% {
+    border-radius: 40% 60% 50% 50% / 60% 40% 60% 40%;
+  }
+  50% {
+    border-radius: 50% 50% 40% 60% / 40% 50% 50% 60%;
+  }
+  75% {
+    border-radius: 60% 40% 60% 40% / 50% 50% 40% 60%;
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes sparkle {
+  0%, 100% {
+    opacity: 0;
+    transform: scale(0) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1) rotate(180deg);
+  }
+}
+
+/* リンクのスタイリング */
+#text a {
+  position: relative;
+  display: inline-block;
+  margin-top: 2em;
+  padding: 16px 40px;
+  background: linear-gradient(135deg, 
+    rgba(16, 185, 129, 0.9) 0%, 
+    rgba(5, 150, 105, 0.95) 50%, 
+    rgba(4, 120, 87, 0.9) 100%);
+  color: #fff;
+  text-decoration: none;
+  font-weight: bold;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  overflow: visible;
+  animation: 
+    magicGlow 3s ease-in-out infinite,
+    morphShape 8s ease-in-out infinite,
+    float 4s ease-in-out infinite;
+  z-index: 1;
+  backdrop-filter: blur(10px);
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+}
+
+/* キラキラエフェクト */
+#text a::before {
+  content: "✨";
+  position: absolute;
+  top: -10px;
+  right: 10%;
+  font-size: 20px;
+  animation: sparkle 2s ease-in-out infinite;
+}
+
+#text a::after {
+  content: "✨";
+  position: absolute;
+  bottom: -10px;
+  left: 15%;
+  font-size: 16px;
+  animation: sparkle 2.5s ease-in-out infinite 0.5s;
+}
+
+/* 追加のキラキラ */
+#text a:hover::before {
+  animation: sparkle 1s ease-in-out infinite;
+}
+
+#text a:hover::after {
+  animation: sparkle 1.2s ease-in-out infinite 0.3s;
+}
+
+#text a:hover {
+  background: linear-gradient(135deg, 
+    rgba(5, 150, 105, 0.95) 0%, 
+    rgba(4, 120, 87, 0.95) 50%, 
+    rgba(16, 185, 129, 0.9) 100%);
+  animation: 
+    magicGlow 1.5s ease-in-out infinite,
+    morphShape 4s ease-in-out infinite,
+    float 2s ease-in-out infinite;
+  transform: translateY(-5px);
+}
+
+#text a:active {
+  transform: scale(0.95) translateY(-3px);
+}
+  </style>
+</head>
+<body>
+  <div id="game">
+    <audio id="bgm" loop></audio>
+    <div id="bg" class="background"></div>
+    <img id="charLeft" class="character left hidden" />
+    <img id="charRight" class="character right hidden" />
+
+    <div id="textbox">
+      <div id="text"></div>
+    </div>
+  </div>
+
+  <script>
+    const scenario = [
+      {
+        type: "bgm",
+        src: "bgm/bgm5.mp3"
+      },
+      {
+        type: "bg",
+        image: "img/bg4.jpg"
+      },
+
+      {
+        type: "char",
+        position: "right",
+        image: "img/ele.png"
+      },
+
+      {
+        type: "text",
+        text: "…………"
+      },
+      {
+        type: "text",
+        text: "「ふう……今日はピンチの中で『思考・姿勢・考え方』を学んだなぁ」<br>魔法少女の姿から戻った架純はオフィス街からの帰り道、そうつぶやいた。<br>「良かったです、また、シャカイジンへと近づきましたね」<br>エメラルドがメインに言う。<br>"
+      },
+      {
+        type: "text",
+        text: "「そうだといいんだけど……まだまだ課題があるかな……」<br>「それも問題解決力などで改善していけばいいのではないでしょうか？」<br>「それもそうだね！よし、これからも頑張るぞ！」<br>「その意気です、メイン！」<br>"
+      },
+      {
+        type: "text",
+        text: "架純とエメラルドの頭上には茜色に染まった夕日が二人を照らしていた。<br>"
+      },
+      {
+        type: "text",
+        text: "（メインにはシャカイジンになってもらわないと困りますからね……）<br>"
+      },
+      {
+        type: "text",
+        text: "続く…………？<br>"
+      },
+
+      {
+        type: "text",
+        text: "<a href='extra.pdf'>おまけ</a>"
+      },
+
+    ];
+
+/*
+      {
+        type: "text",
+        text: ""
+      },
+*/
+
+    let index = 0;
+    let hasInteracted = false;
+
+    const bg = document.getElementById("bg");
+    const bgm = document.getElementById("bgm");
+    const charLeft = document.getElementById("charLeft");
+    const charRight = document.getElementById("charRight");
+    const textBox = document.getElementById("text");
+    const textbox = document.getElementById("textbox");
+
+    function next() {
+      // 最初のクリックでフラグを立てる
+      if (!hasInteracted) {
+        hasInteracted = true;
+      }
+
+      if (index >= scenario.length) return;
+
+      const step = scenario[index];
+      index++;
+
+      if (step.type === "bgm") {
+        if (step.src === null) {
+          bgm.pause();
+          bgm.currentTime = 0;
+          return;
+        }
+
+        // src は絶対URLに変換されるため、datasetで比較する
+        if (bgm.dataset.src !== step.src) {
+          bgm.pause();
+          bgm.src = step.src;
+          bgm.dataset.src = step.src;
+          bgm.currentTime = 0;
+        }
+        bgm.volume = step.volume ?? 0.5;
+        bgm.play().catch((err) => {
+          console.log("BGM再生エラー:", err);
+        });
+      }
+
+      if (step.type === "bg") {
+        bg.classList.add("hidden");
+        setTimeout(() => {
+          bg.style.backgroundImage = `url(${step.image})`;
+          bg.classList.remove("hidden");
+        }, 500);
+      }
+
+      if (step.type === "char") {
+        const target = step.position === "left" ? charLeft : charRight;
+        target.src = step.image;
+        target.classList.remove("hidden");
+        target.style.transform = "translateY(0)";
+      }
+
+      if (step.type === "text") {
+        textBox.innerHTML = step.text;
+      }
+    }
+
+    textbox.addEventListener("click", next);
+
+    // 初回はクリックで開始（自動再生ブロック回避）
+    // next(); ← この行をコメントアウト（クリックしてから開始）
+  </script>
+</body>
+</html>

@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+  <div class="body-bg">
+    <div>
+      <p id="message" class="message"></p>
+    </div>
+    <div class="cups-container">
+      <div class="cups">
+        <div class="cup" data-id="0"></div>
+        <div class="cup" data-id="1"></div>
+        <div class="cup" data-id="2"></div>
+      </div>
+    </div>
+    <button type="button" id="startBtn" class="button">スタート</button>
+    </div>
+  <script>
+  /*javascript*/
+  const startBtn = document.getElementById('startBtn');
+  const cups = Array.from(document.querySelectorAll('.cup'));//javascript用配列の生成
+  let ballCup;//当たりの入ったカップ用の変数宣言
+  let isShuffling = false;//シャッフル中かの変数(スタートボタンクリック可否用)
+  let canSelectCup = false;//カップのクリック可否変数
+  const message = document.getElementById('message');
+  
+  /*位置の反映*/
+
+  const updateCupPositions = () => {
+  const cupsContainer = document.querySelector('.cups');
+
+  const gap = Math.min(window.innerWidth * 0.05, 50);
+  const cupWidth = cups[0].getBoundingClientRect().width;
+
+  const totalWidth =
+    cups.length * cupWidth + (cups.length - 1) * gap;
+
+  const startX = (cupsContainer.clientWidth - totalWidth) / 2;
+
+  cups.forEach((cup, index) => {
+    const x = startX + (cupWidth + gap) * index;
+    cup.style.transform = `translate(${x}px, -50%)`;
+  });
+};
+window.addEventListener('load', updateCupPositions);
+window.addEventListener('resize', updateCupPositions);
+
+
+  updateCupPositions();
+
+  /*マーク処理関数*/
+  const clearFront = () => {
+    cups.forEach(cup => {
+      cup.classList.remove('front');//ボールを非表示
+    })
+  }
+  const showFront = (ballCup) => {
+   ballCup.classList.add('front');//ボールを表示
+  }
+
+
+  /*初期化処理用関数*/
+  const resetGame = () => {
+    clearFront();
+    canSelectCup = false;
+    message.textContent = '';
+    message.classList.remove('hit');
+  }
+
+
+  /*シャッフル処理*/
+  startBtn.addEventListener('click',() => {//スタートボタンを押したとき
+    if (isShuffling) return;//シャッフル中の場合以下の処理をしない
+    isShuffling = true;//シャッフル中に切り替え
+    resetGame();//ゲームを初期化
+    console.log('ボタンが押されました！');//デバッグ用
+    let randomIndex = Math.floor(Math.random()*3);
+    ballCup = cups[randomIndex];//ボールの初期位置
+    message.textContent = '星のカードの位置を覚えてね';
+    showFront(ballCup);//ボールを表示
+    setTimeout(() => {
+      clearFront();//ボールを非表示
+      message.textContent = 'シャッフル中…';
+      let i = 2;
+      let shuffleCount = 15;//シャッフルの回数
+      const shuffleStep = () => {//ここからシャッフル
+        if(shuffleCount <= 0){
+          canSelectCup = true; 
+          message.textContent = 'シャッフル終わり！星のカードはどれかな？';
+          return;
+        }
+        randomNumber = Math.floor(Math.random()*(i + 1));
+        let temp = cups[randomNumber];
+        cups[randomNumber] = cups[i];
+        cups[i] = temp;
+        updateCupPositions();
+        i--;
+        if (i < 0) {
+          i = 2;
+          shuffleCount--;
+        }
+        setTimeout(shuffleStep, 290);
+      } 
+      shuffleStep();//処理を繰り返す
+    },4000);
+  })  
+  
+  /*カップのクリック時処理*/
+  cups.forEach(cup => { //カップを取得&一つ一つのカップに対して下記の処理
+    cup.addEventListener('click', () => {//クリックしたカップを取得
+      if (!canSelectCup) return;
+      console.log(cup.dataset.id);//クリックしたカップを表記
+      if(cup == ballCup){//正解か判定して表記
+        message.textContent = 'あたり！';
+        message.classList.add('hit');
+        showFront(ballCup);//ボールを表示
+        canSelectCup = false;
+        isShuffling = false;//シャッフル中から切り替え
+      } else {
+        message.textContent = 'はずれ…';
+        message.classList.remove('hit');
+      }
+    });
+  });
+
+
+
+  </script>
+</body>
+
+</html>

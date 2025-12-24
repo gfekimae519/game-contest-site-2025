@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="index.css">
+  <link href="https://fonts.googleapis.com/css?family=Bangers rel"="stylesheet">
+  <title>クリスマス会ゲーム</title>
+  <link rel="icon" href="./素材フォルダ/CROSS_RUSH.png" type="image/png">
+</head>
+<body>
+    <div class="content-wrapper">
+        <h1 class="outline">CROSS RUSH</h1>
+        <div class="Score-Screen">
+            <div class="Score hidden">Score:<span id="score"></span></div>
+            <div class="Score">Time:<span id="time"></span></div>
+
+            <button id="bgm-btn">BGM ON</button>
+                <audio id="bgm"src="./素材フォルダ/result.mp3"
+                    loop autoplay muted>
+                </audio>
+            <button id ="howTo-btn">
+                ゲーム説明
+            </button>
+        </div>
+
+                <!-- 説明モーダル -->
+        <div id="modal-A" class="modal hidden">
+            <div class="modal-content">
+            <h2>遊び方</h2>
+            <p>ゲームスタートボタンをクリックするとゲームが開始します。
+            <br>中央のマスに数字が表示されるので、
+            <br>上下左右に表示される４つの数字から同じ物を探して
+            <br>一致する上下左右キーをタイプします。
+            <br>正解する毎にスコアが1点追加され、間違えるとスコアが1点減らされてしまいます。
+            <br>制限時間内に高スコアを目指しましょう！
+            </p>
+            <button id="close-btn"><h3>閉じる</h3></button>
+            </div>
+        </div>
+
+        <button id="startBtn">ゲームスタート</button>
+
+        <div class="Cross hidden">
+            <div id="Up" class="Number"></div>
+            <div id="Left" class="Number"></div>
+            <div id="Center" class="Number"></div>
+            <div id="Right" class="Number"></div>
+            <div id="Down" class="Number"></div>
+        </div>
+        <audio id ="se-ok" src="./素材フォルダ/正解.mp3"></audio>
+        <audio id ="se-ng" src="./素材フォルダ/クイズ不正解1.mp3"></audio>
+
+        <!-- 終了モーダル -->
+        <div id="modal-B" class="modal hidden">
+            <div class="modal-content">
+                <div class="score-rank">
+                    <img  class="font hidden"  id="rank-Ec" src="./素材フォルダ/excellent.png" alt="">
+                    <img  class="font rank-Ni hidden" id="rank-Ni" src="./素材フォルダ/nice.png" alt="">
+                    <img class="font rank-Ba hidden" id="rank-Ba" src="./素材フォルダ/bad.png" alt="">
+                </div>
+                <h2>Finish!
+                <p>スコア：<span id="finalScore"></span></p></h2>
+                <button id="retryBtn"><h3>もう一回！</h3></button>
+            </div>
+        </div>
+        <audio id="se-finish" src="./素材フォルダ/試合終了のゴング.mp3"></audio>
+    </div>
+</body>
+  <!-- ★ これが無いと絶対に動かない -->
+  <script type="module" src="index.js"></script>
+</body>
+</html>

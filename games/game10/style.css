@@ -1,0 +1,71 @@
+.body-bg{
+  background-image: url("images/christmas-bauble-1079926_1280.jpg");
+  background-size: cover;
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  padding-bottom: 30px;
+  background-position: center;
+}
+
+.message{
+  height: 250px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 30px;
+  color: #555;
+  font-weight: bold; 
+}
+
+.cups-container {
+  width: 100%;
+  height: 150px;
+  min-height: clamp(150px, 35vh, 450px);
+  margin-bottom: 10px;
+}
+
+.cups {
+  width: 100%;
+  display: flex;
+  position: relative;
+}
+
+.cup {
+  position: absolute;
+  width: clamp(60px, 15vw, 160px);
+  aspect-ratio: 1 / 1;
+  background-color: gray;
+  background-image: url("images/90413.jpg");
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  transition: transform 0.28s;
+  text-align: center; 
+}
+ 
+.button {
+  width: 20%;
+  height: 60px;
+  display: block;
+  margin: 0 auto;
+  font-size: 20px;
+  color: #555;
+  font-weight: bold;
+}
+
+.message.hit {
+  color:#E63A5F;
+}
+
+.front {
+  background-image: url("images/11-2.png");
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+@media (min-width: 900px) {
+  .cup {
+    width: clamp(120px, 14vw, 260px);
+  }
+}

@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>プレゼント防衛ゲーム</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            background: #dddddd;
+            font-family: 'Arial', sans-serif;
+        }
+
+        #gameContainer {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        canvas {
+            border: 4px solid #a02010;
+            background: #eeeeee;
+        }
+
+        #credit {
+            position: fixed;
+            bottom: 4px;
+            width: 40%;
+            text-align: left;
+
+            font-size: 12px;
+            color: rgba(0, 0, 0, 0.7);
+            font-family: sans-serif;
+
+            pointer-events: none;
+            /* クリックをゲームに通す */
+            z-index: 10;
+        }
+
+        #overlayUI {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            font-size: 14px;
+            color: #000;
+            background: rgba(255, 255, 255, 0.85);
+            padding: 8px 10px;
+            border-radius: 6px;
+            line-height: 1.4;
+            z-index: 10;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        }
+    </style>
+</head>
+
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div id="credit">
+            クレジット<br>
+            ぴぽや倉庫 様　https://pipoya.net/<br>
+            いらすとや 様　https://www.irasutoya.com/
+        </div>
+        <div id="overlayUI">
+            <div id="uiPresent">残りプレゼント：10</div>
+            <div id="uiControl">移動：矢印キー / WASD</div>
+        </div>
+    </div>
+
+    <script>
+        // ========================================
+        // 定数定義
+        // ========================================
+        const CANVAS_WIDTH = 800;
+        const CANVAS_HEIGHT = 600;
+        const SPRITE_SIZE = 32; // スプライト1フレームのサイズ
+        const ANIMATION_SPEED = 0.15; // アニメーション速度
+
+        const santaImage = new Image();
+        santaImage.src = 'image/pipo-xmaschara01.png'; // サンタクロース
+
+        const santaGirlImage = new Image();
+        santaGirlImage.src = 'image/pipo-xmaschara03.png'; // サンタ娘
+
+        const enemyImages = {
+            normal: new Image(),
+            strong: new Image(),
+            boss: new Image()
+        };
+
+        enemyImages.normal.src = 'image/pipo-halloweenchara2016_15.png';
+        enemyImages.strong.src = 'image/pipo-halloweenchara2016_11.png';
+        enemyImages.boss.src = 'image/pipo-halloweenchara2016_01.png';
+
+        const presentImage = new Image();
+        presentImage.src = 'image/present_box.png';
+
+        const attackEffectImage = new Image();
+        attackEffectImage.src = 'image/pipo-hikarimono001.png';
+
+        // 敵のステート定義
+        const EnemyState = {
+            CHASE_PRESENT: 'CHASE_PRESENT',
+            CARRY_PRESENT: 'CARRY_PRESENT',
+            WANDER: 'WANDER',
+            FLEE: 'FLEE'
+        };
+
+        const WAVE_CONFIG = {
+            1: { normal: 4 },
+            2: { normal: 5 },
+            3: { normal: 2, strong: 1 },
+            4: { normal: 4, strong: 1 },
+            5: { normal: 2 },
+            6: { normal: 3, strong: 3 },
+            7: { normal: 2 },
+            8: { normal: 2, strong: 3, boss: 1 }
+        };
+
+        // ========================================
+        // ユーティリティ関数
+        // ========================================
+        function distance(x1, y1, x2, y2) {
+            return Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+        }
+
+        function normalize(x, y) {
+            const len = Math.sqrt(x * x + y * y);
+            if (len === 0) return { x: 0, y: 0 };
+            return { x: x / len, y: y / len };
+        }
+
+        function resizeCanvas(canvas) {
+            const container = document.getElementById('gameContainer');
+
+            const maxWidth = window.innerWidth - 40;
+            const maxHeight = window.innerHeight - 80;
+
+            const scaleX = maxWidth / CANVAS_WIDTH;
+            const scaleY = maxHeight / CANVAS_HEIGHT;
+            const scale = Math.min(scaleX, scaleY, 1); // 拡大しすぎ防止
+
+            canvas.style.width = `${CANVAS_WIDTH * scale}px`;
+            canvas.style.height = `${CANVAS_HEIGHT * scale}px`;
+        }
+
+        function selectPlayerImage() {
+            // 0.0 ～ 1.0
+            const r = Math.random();
+
+            // 90%：サンタクロース、10%：サンタ娘
+            return r < 0.85 ? santaImage : santaGirlImage;
+        }
+
+
+        // ========================================
+        // プレゼントクラス
+        // ========================================
+        class Present {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.size = 24;      // ★ 半径ではなくサイズに
+                this.isCarried = false;
+                this.carrier = null;
+            }
+
+            draw(ctx) {
+                if (this.isCarried) return;
+
+                const dx = this.x - this.size / 2;
+                const dy = this.y - this.size / 2;
+
+                if (presentImage.complete) {
+                    ctx.drawImage(
+                        presentImage,
+                        dx, dy,
+                        this.size, this.size
+                    );
+                } else {
+                    // 読み込み前フォールバック
+                    ctx.fillStyle = '#ff6b6b';
+                    ctx.fillRect(dx, dy, this.size, this.size);
+                    ctx.fillStyle = '#ffd700';
+                    ctx.fillRect(this.x - 2, dy, 4, this.size);
+                    ctx.fillRect(dx, this.y - 2, this.size, 4);
+                }
+            }
+        }
+
+        // ========================================
+        // プレイヤークラス
+        // ========================================
+        class Player {
+            constructor(x, y, image) {
+                this.x = x;
+                this.y = y;
+                this.image = image; // ★ 追加
+                this.speed = 2.5;
+                this.size = 32;
+                this.direction = 0;
+                this.frame = 0;
+                this.animationCounter = 0;
+                this.isMoving = false;
+            }
+
+            update(keys) {
+                let dx = 0;
+                let dy = 0;
+                this.isMoving = false;
+
+                if (keys['ArrowUp'] || keys['w'] || keys['W']) {
+                    dy -= 1;
+                    this.isMoving = true;
+                }
+                if (keys['ArrowDown'] || keys['s'] || keys['S']) {
+                    dy += 1;
+                    this.isMoving = true;
+                }
+                if (keys['ArrowLeft'] || keys['a'] || keys['A']) {
+                    dx -= 1;
+                    this.isMoving = true;
+                }
+                if (keys['ArrowRight'] || keys['d'] || keys['D']) {
+                    dx += 1;
+                    this.isMoving = true;
+                }
+
+                // 移動方向の正規化
+                if (dx !== 0 || dy !== 0) {
+                    const norm = normalize(dx, dy);
+                    this.x += norm.x * this.speed;
+                    this.y += norm.y * this.speed;
+
+                    // 向きの更新
+                    if (Math.abs(dx) > Math.abs(dy)) {
+                        this.direction = dx > 0 ? 2 : 1; // 右 or 左
+                    } else {
+                        this.direction = dy > 0 ? 0 : 3; // 下 or 上
+                    }
+                }
+
+                // 画面外に出ないよう制限
+                this.x = Math.max(this.size / 2, Math.min(CANVAS_WIDTH - this.size / 2, this.x));
+                this.y = Math.max(this.size / 2, Math.min(CANVAS_HEIGHT - this.size / 2, this.y));
+
+                // アニメーション更新
+                if (this.isMoving) {
+                    this.animationCounter += ANIMATION_SPEED;
+                    if (this.animationCounter >= 1) {
+                        this.animationCounter = 0;
+                        this.frame = (this.frame + 1) % 3;
+                    }
+                } else {
+                    this.frame = 1; // 停止時は中央フレーム
+                }
+            }
+
+            draw(ctx) {
+                const chipSize = 32;
+
+                // 切り出し元座標
+                const sx = this.frame * chipSize;      // 横：アニメーション
+                const sy = this.direction * chipSize;  // 縦：向き
+
+                // 描画先座標（中心基準なので -16）
+                const dx = this.x - chipSize / 2;
+                const dy = this.y - chipSize / 2;
+
+                ctx.drawImage(
+                    this.image,
+                    sx, sy,               // 切り出し開始位置
+                    chipSize, chipSize,   // 切り出しサイズ
+                    dx, dy,               // 描画位置
+                    chipSize, chipSize    // 描画サイズ
+                );
+            }
+        }
+
+        // ========================================
+        // 敵クラス
+        // ========================================
+        class Enemy {
+            constructor(x, y, type = 'normal') {
+                this.x = x;
+                this.y = y;
+                this.type = type;
+                this.size = 32;
+                this.image = enemyImages[type];
+                this.state = EnemyState.CHASE_PRESENT;
+                this.targetPresent = null;
+                this.carriedPresent = null;
+                this.direction = 0;
+                this.frame = 0;
+                this.animationCounter = 0;
+                this.wanderTimer = 0;
+                this.wanderDirection = { x: 0, y: 0 };
+
+                // タイプ別パラメータ
+                if (type === 'normal') {
+                    this.hp = 3;
+                    this.maxHp = 3;
+                    this.speed = 0.5;
+                    this.color = '#9b59b6';
+                } else if (type === 'strong') {
+                    this.hp = 7;
+                    this.maxHp = 7;
+                    this.speed = 0.3;
+                    this.color = '#e74c3c';
+                } else if (type === 'boss') {
+                    this.hp = 30;
+                    this.maxHp = 30;
+                    this.speed = 0.3;
+                    this.color = '#34495e';
+                }
+            }
+
+            update(presents, game) {
+                switch (this.state) {
+                    case EnemyState.CHASE_PRESENT:
+                        this.chasePresent(presents);
+                        break;
+                    case EnemyState.CARRY_PRESENT:
+                        this.carryPresent();
+                        break;
+                    case EnemyState.WANDER:
+                        this.wander();
+                        break;
+                    case EnemyState.FLEE:
+                        this.flee();
+                        break;
+                }
+
+                // プレゼントがない場合はWANDERへ
+                const availablePresents = presents.filter(p => !p.isCarried);
+                if (availablePresents.length === 0 && this.state === EnemyState.CHASE_PRESENT) {
+                    this.state = EnemyState.WANDER;
+                    this.wanderTimer = 0;
+                }
+
+                // 新しいプレゼントが落ちたらCHASEへ
+                if (this.state === EnemyState.WANDER && availablePresents.length > 0) {
+                    this.state = EnemyState.CHASE_PRESENT;
+                }
+
+                // アニメーション更新
+                this.animationCounter += ANIMATION_SPEED;
+                if (this.animationCounter >= 1) {
+                    this.animationCounter = 0;
+                    this.frame = (this.frame + 1) % 3;
+                }
+            }
+
+            chasePresent(presents) {
+                // 最も近い未所持プレゼントを探す
+                const availablePresents = presents.filter(p => !p.isCarried);
+                if (availablePresents.length === 0) return;
+
+                let nearest = null;
+                let minDist = Infinity;
+                for (const present of availablePresents) {
+                    const dist = distance(this.x, this.y, present.x, present.y);
+                    if (dist < minDist) {
+                        minDist = dist;
+                        nearest = present;
+                    }
+                }
+
+                if (nearest) {
+                    this.targetPresent = nearest;
+                    const dx = nearest.x - this.x;
+                    const dy = nearest.y - this.y;
+                    const norm = normalize(dx, dy);
+
+                    this.x += norm.x * this.speed;
+                    this.y += norm.y * this.speed;
+
+                    // 向きの更新
+                    if (Math.abs(dx) > Math.abs(dy)) {
+                        this.direction = dx > 0 ? 2 : 1;
+                    } else {
+                        this.direction = dy > 0 ? 0 : 3;
+                    }
+
+                    // プレゼントに接触
+                    if (distance(this.x, this.y, nearest.x, nearest.y) < 20) {
+                        nearest.isCarried = true;
+                        nearest.carrier = this;
+                        this.carriedPresent = nearest;
+                        this.state = EnemyState.CARRY_PRESENT;
+                    }
+                }
+            }
+
+            carryPresent() {
+                // 画面外へ向かう
+                const centerX = CANVAS_WIDTH / 2;
+                const centerY = CANVAS_HEIGHT / 2;
+                const dx = this.x - centerX;
+                const dy = this.y - centerY;
+                const norm = normalize(dx, dy);
+
+                this.x += norm.x * this.speed;
+                this.y += norm.y * this.speed;
+
+                // 向きの更新
+                if (Math.abs(dx) > Math.abs(dy)) {
+                    this.direction = dx > 0 ? 2 : 1;
+                } else {
+                    this.direction = dy > 0 ? 0 : 3;
+                }
+
+                // プレゼント位置を更新
+                if (this.carriedPresent) {
+                    this.carriedPresent.x = this.x;
+                    this.carriedPresent.y = this.y - this.size / 2;
+                }
+            }
+
+            wander() {
+                this.wanderTimer++;
+
+                // 1〜3秒ごとに方向変更
+                if (this.wanderTimer > 60 + Math.random() * 120) {
+                    this.wanderTimer = 0;
+                    const angle = Math.random() * Math.PI * 2;
+                    this.wanderDirection = {
+                        x: Math.cos(angle),
+                        y: Math.sin(angle)
+                    };
+                }
+
+                this.x += this.wanderDirection.x * this.speed;
+                this.y += this.wanderDirection.y * this.speed;
+
+                // 画面端で方向変更
+                if (this.x < 30 || this.x > CANVAS_WIDTH - 30) {
+                    this.wanderDirection.x *= -1;
+                }
+                if (this.y < 30 || this.y > CANVAS_HEIGHT - 30) {
+                    this.wanderDirection.y *= -1;
+                }
+
+                // 向きの更新
+                const dx = this.wanderDirection.x;
+                const dy = this.wanderDirection.y;
+                if (Math.abs(dx) > Math.abs(dy)) {
+                    this.direction = dx > 0 ? 2 : 1;
+                } else {
+                    this.direction = dy > 0 ? 0 : 3;
+                }
+            }
+
+            flee() {
+                // 画面外へ逃走
+                const centerX = CANVAS_WIDTH / 2;
+                const centerY = CANVAS_HEIGHT / 2;
+                const dx = this.x - centerX;
+                const dy = this.y - centerY;
+                const norm = normalize(dx, dy);
+
+                this.x += norm.x * this.speed * 2;
+                this.y += norm.y * this.speed * 2;
+
+                // 向きの更新
+                if (Math.abs(dx) > Math.abs(dy)) {
+                    this.direction = dx > 0 ? 2 : 1;
+                } else {
+                    this.direction = dy > 0 ? 0 : 3;
+                }
+            }
+
+            takeDamage(damage) {
+                this.hp -= damage;
+                if (this.hp <= 0) {
+                    // プレゼントを落とす
+                    if (this.carriedPresent) {
+                        this.carriedPresent.isCarried = false;
+                        this.carriedPresent.carrier = null;
+                    }
+                    return true; // 死亡
+                }
+                return false;
+            }
+
+            draw(ctx) {
+                const chipSize = 32;
+
+                const sx = this.frame * chipSize;
+                const sy = this.direction * chipSize;
+
+                const dx = this.x - chipSize / 2;
+                const dy = this.y - chipSize / 2;
+
+                if (this.image && this.image.complete) {
+                    ctx.drawImage(
+                        this.image,
+                        sx, sy,
+                        chipSize, chipSize,
+                        dx, dy,
+                        chipSize, chipSize
+                    );
+                } else {
+                    // 読み込み前フォールバック
+                    ctx.fillStyle = this.color;
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.size / 2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // --- プレゼント表示 ---
+                if (this.carriedPresent) {
+                    ctx.fillStyle = '#e21E58';
+                    ctx.fillRect(this.x - 8, this.y - this.size / 2 - 10, 16, 16);
+                    ctx.fillStyle = '#f4baca';
+                    ctx.fillRect(this.x - 2, this.y - this.size / 2 - 10, 4, 16);
+                }
+
+                // --- HPバー ---
+                const barWidth = 40;
+                const barHeight = 4;
+                const barX = this.x - barWidth / 2;
+                const barY = this.y - this.size / 2 - 15;
+
+                ctx.fillStyle = '#000';
+                ctx.fillRect(barX, barY, barWidth, barHeight);
+                ctx.fillStyle = '#00ff00';
+                ctx.fillRect(barX, barY, barWidth * (this.hp / this.maxHp), barHeight);
+            }
+        }
+
+        // ========================================
+        // ゲームクラス
+        // ========================================
+        class Game {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+
+                resizeCanvas(this.canvas);
+                window.addEventListener('resize', () => resizeCanvas(this.canvas));
+
+                this.keys = {};
+
+                const selectedPlayerImage = selectPlayerImage();
+                this.player = new Player(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, selectedPlayerImage);
+                this.presents = [];
+                this.enemies = [];
+                this.wave = 1;
+                this.waveTimer = 0;
+                this.attackTimer = 0;
+                this.attackCooldown = 18; // 0.3秒（60FPS）
+                this.isGameOver = false;
+                this.isGameClear = false;
+                this.bossDefeated = false;
+                this.naturalSpawnTimer = 0;
+                this.naturalSpawnInterval = 3.5 * 60;
+                this.effects = [];
+
+                this.initPresents();
+                this.startWave();
+                this.setupInput();
+                this.gameLoop();
+            }
+
+            initPresents() {
+                // プレゼントをだ円状に配置
+                const centerX = CANVAS_WIDTH / 2;
+                const centerY = CANVAS_HEIGHT / 2;
+                const radiusX = 90;
+                const radiusY = 60;
+
+                for (let i = 0; i < 10; i++) {
+                    const angle = (i / 10) * Math.PI * 2;
+                    const x = centerX + Math.cos(angle) * radiusX;
+                    const y = centerY + Math.sin(angle) * radiusY;
+                    this.presents.push(new Present(x, y));
+                }
+            }
+
+            setupInput() {
+                window.addEventListener('keydown', (e) => {
+                    if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(e.key)) {
+                        e.preventDefault(); // ← スクロール防止
+                    }
+                    this.keys[e.key] = true;
+                }, { passive: false });
+
+                window.addEventListener('keyup', (e) => {
+                    this.keys[e.key] = false;
+                });
+            }
+
+            startWave() {
+                this.waveTimer = 10 * 60; // 10秒のインターバル
+
+                const config = WAVE_CONFIG[this.wave];
+                if (!config) return;
+
+                for (const type in config) {
+                    const count = config[type];
+                    for (let i = 0; i < count; i++) {
+                        this.spawnEnemy(type);
+                    }
+                }
+            }
+
+            spawnEnemy(type) {
+                const side = Math.floor(Math.random() * 4);
+                let x, y;
+
+                if (side === 0) { // 上
+                    x = Math.random() * CANVAS_WIDTH;
+                    y = -30;
+                } else if (side === 1) { // 下
+                    x = Math.random() * CANVAS_WIDTH;
+                    y = CANVAS_HEIGHT + 30;
+                } else if (side === 2) { // 左
+                    x = -30;
+                    y = Math.random() * CANVAS_HEIGHT;
+                } else { // 右
+                    x = CANVAS_WIDTH + 30;
+                    y = Math.random() * CANVAS_HEIGHT;
+                }
+
+                this.enemies.push(new Enemy(x, y, type));
+            }
+
+            update() {
+                if (this.isGameOver || this.isGameClear) return;
+
+                // プレイヤー更新
+                this.player.update(this.keys);
+
+                // 敵更新
+                for (const enemy of this.enemies) {
+                    enemy.update(this.presents, this);
+                }
+
+                // 敵が画面外に出たらプレゼント消失判定
+                this.enemies = this.enemies.filter(enemy => {
+
+                    const isOut =
+                        enemy.x < -20 || enemy.x > CANVAS_WIDTH + 20 ||
+                        enemy.y < -20 || enemy.y > CANVAS_HEIGHT + 20;
+
+                    // プレゼント持ち逃げ
+                    if (enemy.state === EnemyState.CARRY_PRESENT && isOut) {
+                        const index = this.presents.indexOf(enemy.carriedPresent);
+                        if (index > -1) {
+                            this.presents.splice(index, 1);
+                        }
+                        if (enemy.type === 'boss') {
+                            this.bossDefeated = true;
+                        }
+                        return false;
+                    }
+
+                    // FLEEで画面外
+                    if (enemy.state === EnemyState.FLEE && isOut) {
+                        return false;
+                    }
+
+                    return true;
+                });
+
+                for (let i = this.effects.length - 1; i >= 0; i--) {
+                    const e = this.effects[i];
+
+                    e.timer++;
+                    if (e.timer % 4 === 0) {
+                        e.frame++;
+                    }
+
+                    // 3フレーム再生したら消す
+                    if (e.frame >= 3) {
+                        this.effects.splice(i, 1);
+                    }
+                }
+
+                // 自動攻撃
+                this.attackTimer++;
+                if (this.attackTimer >= this.attackCooldown) {
+                    this.attackTimer = 0;
+                    this.autoAttack();
+                }
+
+                // ウェーブ管理
+                if (this.waveTimer > 0) {
+                    this.waveTimer--;
+                } else {
+                    if (this.wave < 8) {
+                        this.wave++;
+                        this.startWave();
+                    }
+                }
+
+                if (!this.bossDefeated) {
+                    this.naturalSpawnTimer++;
+                    if (this.naturalSpawnTimer >= this.naturalSpawnInterval) {
+                        this.naturalSpawnTimer = 0;
+                        if (this.enemies.length < 10) {
+                            this.spawnEnemy('normal');
+                        }
+                    }
+                }
+
+                // ボス撃破後の処理
+                if (this.bossDefeated && !this.isGameClear) {
+                    // すべての敵が退場したらゲームクリア
+                    if (this.enemies.length === 0) {
+                        this.isGameClear = true;
+                    }
+                }
+
+                // ゲームオーバー判定
+                if (this.presents.length === 0) {
+                    this.isGameOver = true;
+                }
+
+                // UI更新
+                document.getElementById('uiPresent').textContent = `残りプレゼント：${this.presents.length}`;
+            }
+
+            autoAttack() {
+                // 最も近い敵を探す
+                let nearest = null;
+                let minDist = Infinity;
+                const attackRange = 70;
+
+                for (const enemy of this.enemies) {
+                    const dist = distance(this.player.x, this.player.y, enemy.x, enemy.y);
+                    if (dist < attackRange && dist < minDist) {
+                        minDist = dist;
+                        nearest = enemy;
+                    }
+                }
+
+                if (nearest) {
+                    const died = nearest.takeDamage(1);
+
+                    // ★ エフェクト生成
+                    this.effects.push({
+                        x: nearest.x,
+                        y: nearest.y,
+                        frame: 0,
+                        timer: 0
+                    });
+
+                    if (died) {
+                        if (nearest.type === 'boss') {
+                            this.bossDefeated = true;
+                            for (const enemy of this.enemies) {
+                                if (enemy.state !== EnemyState.FLEE) {
+                                    enemy.state = EnemyState.FLEE;
+                                    if (enemy.carriedPresent) {
+                                        enemy.carriedPresent.isCarried = false;
+                                        enemy.carriedPresent.carrier = null;
+                                        enemy.carriedPresent = null;
+                                    }
+                                }
+                            }
+                        }
+                        const index = this.enemies.indexOf(nearest);
+                        if (index > -1) {
+                            this.enemies.splice(index, 1);
+                        }
+                    }
+                }
+            }
+
+            showEffect(x, y) {
+                // エフェクト描画（一時的）
+                this.effectX = x;
+                this.effectY = y;
+                this.effectTimer = 10;
+            }
+
+            draw() {
+                // 背景
+                this.ctx.fillStyle = '#eeeeee';
+                this.ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+                // プレゼント描画
+                for (const present of this.presents) {
+                    present.draw(this.ctx);
+                }
+
+                // 敵描画
+                for (const enemy of this.enemies) {
+                    enemy.draw(this.ctx);
+                }
+
+                // プレイヤー描画
+                this.player.draw(this.ctx);
+
+                // エフェクト描画
+                const size = 32;
+                const effectRow = 2; // ★ 0始まり → 3段目
+
+                for (const e of this.effects) {
+                    const sx = e.frame * size;
+                    const sy = effectRow * size;
+
+                    const dx = e.x - size;
+                    const dy = e.y - size;
+
+                    this.ctx.drawImage(
+                        attackEffectImage,
+                        sx, sy,
+                        size, size,
+                        dx, dy,
+                        size * 2, size * 2
+                    );
+                }
+
+                // ゲームオーバー/クリア表示
+                if (this.isGameOver) {
+                    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                    this.ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+                    this.ctx.fillStyle = '#ff0000';
+                    this.ctx.font = 'bold 60px Arial';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.fillText('GAME OVER', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+                }
+
+                if (this.isGameClear) {
+                    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                    this.ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+                    this.ctx.fillStyle = '#00ff00';
+                    this.ctx.font = 'bold 60px Arial';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.fillText('GAME CLEAR!', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+                }
+            }
+
+            gameLoop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(() => this.gameLoop());
+            }
+        }
+
+        // ========================================
+        // ゲーム開始
+        // ========================================
+        window.addEventListener('load', () => {
+            new Game();
+        });
+    </script>
+</body>
+
+</html>
