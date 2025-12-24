@@ -247,10 +247,9 @@ window.addEventListener('load', function () {
         "",
         "先行体験版はここまでです。 Thank You for Playing!!!!",
         "正式リリースをお待ちください。 プレイ、ありがとうございました！",
-         "<bgimg img/thank you.png>",
+         "<bgimg img/thanks.png>",
       
 
-       
     ];
 
 
